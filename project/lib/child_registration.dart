@@ -1,300 +1,3 @@
-/*import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
-class ChildRegistrationPage extends StatefulWidget {
-  const ChildRegistrationPage({super.key});
-
-  @override
-  State<ChildRegistrationPage> createState() => _ChildRegistrationPageState();
-}
-
-class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
-  final _formKey = GlobalKey<FormState>();
-
-  final name = TextEditingController();
-  final dob = TextEditingController();
-  final mother = TextEditingController();
-  final cnic = TextEditingController();
-  final address = TextEditingController();
-  final district = TextEditingController();
-  final contactNumber = TextEditingController();
-
-  String gender = "";
-  String qrCode = "";
-  bool loading = false;
-
-  // ✅ NEW: IMAGE FILE + URL
-  File? imageFile;
-  String? imageUrl;
-
-  final ImagePicker picker = ImagePicker();
-
-  // ---------------- PICK IMAGE ----------------
-  Future<void> pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-
-    if (picked != null) {
-      setState(() {
-        imageFile = File(picked.path);
-      });
-    }
-  }
-
-  // ---------------- UPLOAD IMAGE ----------------
-  Future<String> uploadImage(File file) async {
-    String fileName = "children/${DateTime.now().millisecondsSinceEpoch}.jpg";
-
-    UploadTask task = FirebaseStorage.instance
-        .ref()
-        .child(fileName)
-        .putFile(file);
-
-    TaskSnapshot snapshot = await task;
-
-    return await snapshot.ref.getDownloadURL();
-  }
-
-  String generateQR() {
-    return "CH-${DateTime.now().millisecondsSinceEpoch}";
-  }
-
-  Future<void> pickDOB() async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null) {
-      dob.text = "${picked.day}-${picked.month}-${picked.year}";
-    }
-  }
-
-  Future<void> saveChild() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      loading = true;
-      qrCode = generateQR();
-    });
-
-    try {
-      // ✅ upload image first
-      if (imageFile != null) {
-        imageUrl = await uploadImage(imageFile!);
-      }
-
-      await FirebaseFirestore.instance.collection("children").add({
-        "name": name.text.trim(),
-        "dob": dob.text.trim(),
-        "mother": mother.text.trim(),
-        "cnic": cnic.text.trim(),
-        "address": address.text.trim(),
-        "gender": gender,
-        "district": district.text.trim(),
-        "contact": contactNumber.text.trim(),
-        "qrCode": qrCode,
-        "imageUrl": imageUrl ?? "",
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Child Registered Successfully")),
-      );
-
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-    }
-
-    setState(() => loading = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Child Registration"),
-        backgroundColor: const Color(0xFF2563EB),
-      ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-
-                    // ---------------- IMAGE UPLOAD (NEW UI) ----------------
-                    GestureDetector(
-                      onTap: pickImage,
-                      child: Container(
-                        height: 120,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(10),
-                          image: imageFile != null
-                              ? DecorationImage(
-                                  image: FileImage(imageFile!),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child: imageFile == null
-                            ? const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.camera_alt,
-                                      size: 40, color: Colors.blue),
-                                  SizedBox(height: 5),
-                                  Text("Upload Child Photo"),
-                                ],
-                              )
-                            : null,
-                      ),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    // ---------------- EXISTING FIELDS (UNCHANGED) ----------------
-                    TextFormField(
-                      controller: name,
-                      decoration: _dec("Child Name"),
-                      validator: (v) => v!.isEmpty ? "Required" : null,
-                    ),
-
-                    TextFormField(
-                      controller: dob,
-                      readOnly: true,
-                      onTap: pickDOB,
-                      decoration: _dec("Date of Birth"),
-                      validator: (v) => v!.isEmpty ? "Required" : null,
-                    ),
-
-                    TextFormField(
-                      controller: mother,
-                      decoration: _dec("Mother Name"),
-                      validator: (v) => v!.isEmpty ? "Required" : null,
-                    ),
-
-                    TextFormField(
-                      controller: cnic,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(13),
-                        _CnicFormatter(),
-                      ],
-                      decoration: _dec("CNIC (xxxxx-xxxxxxx-x)"),
-                    ),
-
-                    TextFormField(
-                      controller: address,
-                      decoration: _dec("Address"),
-                    ),
-
-                    DropdownButtonFormField<String>(
-                      value: gender.isEmpty ? null : gender,
-                      items: ["Male", "Female", "Other"]
-                          .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() => gender = v!),
-                      decoration: _dec("Gender"),
-                    ),
-
-                    TextFormField(
-                      controller: district,
-                      decoration: _dec("District"),
-                    ),
-
-                    TextFormField(
-                      controller: contactNumber,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                        _PhoneFormatter(),
-                      ],
-                      decoration: _dec("03XX-XXXXXXX"),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    ElevatedButton(
-                      onPressed: saveChild,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text("Save Child"),
-                    )
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  InputDecoration _dec(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-    );
-  }
-}
-
-// ---------------- CNIC FORMAT ----------------
-class _CnicFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(oldValue, newValue) {
-    String digits = newValue.text.replaceAll('-', '');
-
-    String result = "";
-    for (int i = 0; i < digits.length; i++) {
-      if (i == 5 || i == 12) result += "-";
-      result += digits[i];
-    }
-
-    return TextEditingValue(
-      text: result,
-      selection: TextSelection.collapsed(offset: result.length),
-    );
-  }
-}
-
-// ---------------- PHONE FORMAT ----------------
-class _PhoneFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(oldValue, newValue) {
-    String digits = newValue.text.replaceAll('-', '');
-
-    if (digits.length > 4) {
-      return TextEditingValue(
-        text: "${digits.substring(0, 4)}-${digits.substring(4)}",
-        selection: TextSelection.collapsed(offset: digits.length + 1),
-      );
-    }
-
-    return newValue;
-  }
-}
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -312,402 +15,148 @@ class ChildRegistrationPage extends StatefulWidget {
 class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
   final _formKey = GlobalKey<FormState>();
 
+  // Controllers
   final name = TextEditingController();
-  final dob = TextEditingController();
-  final age = TextEditingController(); // ✅ NEW
+  final dobController = TextEditingController();
+  final ageController = TextEditingController();
   final mother = TextEditingController();
   final cnic = TextEditingController();
   final address = TextEditingController();
   final district = TextEditingController();
   final contactNumber = TextEditingController();
 
+  DateTime? selectedDate;
   String gender = "";
   String qrCode = "";
   bool loading = false;
 
   File? imageFile;
   String? imageUrl;
-
   final ImagePicker picker = ImagePicker();
 
-  // ---------------- PICK IMAGE ----------------
-  Future<void> pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-
-    if (picked != null) {
-      setState(() {
-        imageFile = File(picked.path);
-      });
-    }
-  }
-
-  // ---------------- UPLOAD IMAGE ----------------
-  Future<String> uploadImage(File file) async {
-    String fileName = "children/${DateTime.now().millisecondsSinceEpoch}.jpg";
-
-    UploadTask task = FirebaseStorage.instance
-        .ref()
-        .child(fileName)
-        .putFile(file);
-
-    TaskSnapshot snapshot = await task;
-
-    return await snapshot.ref.getDownloadURL();
-  }
-
-  String generateQR() {
-    return "CH-${DateTime.now().millisecondsSinceEpoch}";
-  }
-
-  // ---------------- CALCULATE AGE ----------------
-  int calculateAge(DateTime birthDate) {
-    final today = DateTime.now();
-    int age = today.year - birthDate.year;
-
-    if (today.month < birthDate.month ||
-        (today.month == birthDate.month && today.day < birthDate.day)) {
-      age--;
-    }
-    return age;
-  }
-
-  Future<void> pickDOB() async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null) {
-      dob.text = "${picked.day}-${picked.month}-${picked.year}";
-
-      // ✅ AUTO SET AGE
-      int calculatedAge = calculateAge(picked);
-      age.text = calculatedAge.toString();
-    }
-  }
-
-  Future<void> saveChild() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      loading = true;
-      qrCode = generateQR();
-    });
-
+  // --- IMPROVED CAMERA/GALLERY LOGIC ---
+  Future<void> pickImage(ImageSource source) async {
     try {
-      if (imageFile != null) {
-        imageUrl = await uploadImage(imageFile!);
+      // imageQuality set karne se Firebase upload fast hota hai aur memory crash nahi hoti
+      final XFile? picked = await picker.pickImage(
+        source: source,
+        imageQuality: 50, // Optimize image for mobile
+        maxWidth: 1000,
+      );
+      
+      if (picked != null) {
+        setState(() {
+          imageFile = File(picked.path);
+        });
       }
-
-      await FirebaseFirestore.instance.collection("children").add({
-        "name": name.text.trim(),
-        "dob": dob.text.trim(),
-        "age": age.text.trim(), // ✅ SAVED
-        "mother": mother.text.trim(),
-        "cnic": cnic.text.trim(),
-        "address": address.text.trim(),
-        "gender": gender,
-        "district": district.text.trim(),
-        "contact": contactNumber.text.trim(),
-        "qrCode": qrCode,
-        "imageUrl": imageUrl ?? "",
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Child Registered Successfully")),
-      );
-
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+    } on PlatformException catch (e) {
+      debugPrint("Failed to pick image: $e");
+      _showSnackBar("Permission denied or error occurred");
     }
-
-    setState(() => loading = false);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Child Registration"),
-        backgroundColor: const Color(0xFF2563EB),
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-
-                    // IMAGE
-                    GestureDetector(
-                      onTap: pickImage,
-                      child: Container(
-                        height: 120,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(10),
-                          image: imageFile != null
-                              ? DecorationImage(
-                                  image: FileImage(imageFile!),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child: imageFile == null
-                            ? const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.camera_alt,
-                                      size: 40, color: Colors.blue),
-                                  SizedBox(height: 5),
-                                  Text("Upload Child Photo"),
-                                ],
-                              )
-                            : null,
-                      ),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    TextFormField(
-                      controller: name,
-                      decoration: _dec("Child Name"),
-                      validator: (v) => v!.isEmpty ? "Required" : null,
-                    ),
-
-                    TextFormField(
-                      controller: dob,
-                      readOnly: true,
-                      onTap: pickDOB,
-                      decoration: _dec("Date of Birth"),
-                      validator: (v) => v!.isEmpty ? "Required" : null,
-                    ),
-
-                    // ✅ AGE FIELD
-                    TextFormField(
-                      controller: age,
-                      readOnly: true,
-                      decoration: _dec("Age"),
-                    ),
-
-                    TextFormField(
-                      controller: mother,
-                      decoration: _dec("Mother Name"),
-                      validator: (v) => v!.isEmpty ? "Required" : null,
-                    ),
-
-                    TextFormField(
-                      controller: cnic,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(13),
-                        _CnicFormatter(),
-                      ],
-                      decoration: _dec("CNIC (xxxxx-xxxxxxx-x)"),
-                    ),
-
-                    TextFormField(
-                      controller: address,
-                      decoration: _dec("Address"),
-                    ),
-
-                    DropdownButtonFormField<String>(
-                      value: gender.isEmpty ? null : gender,
-                      items: ["Male", "Female", "Other"]
-                          .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() => gender = v!),
-                      decoration: _dec("Gender"),
-                    ),
-
-                    TextFormField(
-                      controller: district,
-                      decoration: _dec("District"),
-                    ),
-
-                    TextFormField(
-                      controller: contactNumber,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                        _PhoneFormatter(),
-                      ],
-                      decoration: _dec("03XX-XXXXXXX"),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    ElevatedButton(
-                      onPressed: saveChild,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text("Save Child"),
-                    )
-                  ],
-                ),
-              ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(
+              title: Text("Select Image", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-    );
-  }
-
-  InputDecoration _dec(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              title: const Text("Take Photo from Camera"),
+              onTap: () {
+                Navigator.pop(context);
+                pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.blue),
+              title: const Text("Choose from Gallery"),
+              onTap: () {
+                Navigator.pop(context);
+                pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
-// CNIC FORMAT
-class _CnicFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(oldValue, newValue) {
-    String digits = newValue.text.replaceAll('-', '');
+  // --- AGE CALCULATION ---
+  String calculateDetailedAge(DateTime birthDate) {
+    DateTime today = DateTime.now();
+    int years = today.year - birthDate.year;
+    int months = today.month - birthDate.month;
+    int days = today.day - birthDate.day;
 
-    String result = "";
-    for (int i = 0; i < digits.length; i++) {
-      if (i == 5 || i == 12) result += "-";
-      result += digits[i];
+    if (days < 0) {
+      months -= 1;
+      int previousMonth = today.month - 1 == 0 ? 12 : today.month - 1;
+      int yearOfPrevMonth = today.month - 1 == 0 ? today.year - 1 : today.year;
+      int daysInPrevMonth = DateTime(yearOfPrevMonth, previousMonth + 1, 0).day;
+      days += daysInPrevMonth;
     }
-
-    return TextEditingValue(
-      text: result,
-      selection: TextSelection.collapsed(offset: result.length),
-    );
-  }
-}
-
-// PHONE FORMAT
-class _PhoneFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(oldValue, newValue) {
-    String digits = newValue.text.replaceAll('-', '');
-
-    if (digits.length > 4) {
-      return TextEditingValue(
-        text: "${digits.substring(0, 4)}-${digits.substring(4)}",
-        selection: TextSelection.collapsed(offset: digits.length + 1),
-      );
+    if (months < 0) {
+      years -= 1;
+      months += 12;
     }
-
-    return newValue;
-  }
-}*/
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
-class ChildRegistrationPage extends StatefulWidget {
-  const ChildRegistrationPage({super.key});
-
-  @override
-  State<ChildRegistrationPage> createState() => _ChildRegistrationPageState();
-}
-
-class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
-  final _formKey = GlobalKey<FormState>();
-
-  final name = TextEditingController();
-  final dob = TextEditingController();
-  final age = TextEditingController();
-  final mother = TextEditingController();
-  final cnic = TextEditingController();
-  final address = TextEditingController();
-  final district = TextEditingController();
-  final contactNumber = TextEditingController();
-
-  String gender = "";
-  String qrCode = "";
-  bool loading = false;
-
-  File? imageFile;
-  String? imageUrl;
-
-  final ImagePicker picker = ImagePicker();
-
-  Future<void> pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-
-    if (picked != null) {
-      setState(() {
-        imageFile = File(picked.path);
-      });
-    }
-  }
-
-  Future<String> uploadImage(File file) async {
-    String fileName = "children/${DateTime.now().millisecondsSinceEpoch}.jpg";
-
-    UploadTask task = FirebaseStorage.instance
-        .ref()
-        .child(fileName)
-        .putFile(file);
-
-    TaskSnapshot snapshot = await task;
-
-    return await snapshot.ref.getDownloadURL();
-  }
-
-  String generateQR() {
-    return "CH-${DateTime.now().millisecondsSinceEpoch}";
-  }
-
-  int calculateAge(DateTime birthDate) {
-    final today = DateTime.now();
-    int age = today.year - birthDate.year;
-
-    if (today.month < birthDate.month ||
-        (today.month == birthDate.month && today.day < birthDate.day)) {
-      age--;
-    }
-    return age;
+    
+    List<String> parts = [];
+    if (years > 0) parts.add("$years Y");
+    if (months > 0) parts.add("$months M");
+    if (years == 0 && months == 0) parts.add("$days D");
+    
+    return parts.isEmpty ? "0 D" : parts.join(", ");
   }
 
   Future<void> pickDOB() async {
     DateTime? picked = await showDatePicker(
       context: context,
+      initialDate: DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
-
     if (picked != null) {
-      dob.text = "${picked.day}-${picked.month}-${picked.year}";
-      age.text = calculateAge(picked).toString();
+      setState(() {
+        selectedDate = picked;
+        dobController.text = "${picked.day}-${picked.month}-${picked.year}";
+        ageController.text = calculateDetailedAge(picked);
+      });
     }
   }
 
+  // --- FIREBASE LOGIC ---
+  Future<String> uploadImage(File file) async {
+    String fileName = "children/${DateTime.now().millisecondsSinceEpoch}.jpg";
+    Reference ref = FirebaseStorage.instance.ref().child(fileName);
+    UploadTask task = ref.putFile(file);
+    TaskSnapshot snapshot = await task;
+    return await snapshot.ref.getDownloadURL();
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   Future<void> saveChild() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || selectedDate == null) {
+      _showSnackBar("Please fill all fields and select DOB");
+      return;
+    }
+    if (gender.isEmpty) {
+      _showSnackBar("Please select gender");
+      return;
+    }
 
-    setState(() {
-      loading = true;
-      qrCode = generateQR();
-    });
-
+    setState(() => loading = true);
+    
     try {
       if (imageFile != null) {
         imageUrl = await uploadImage(imageFile!);
@@ -715,43 +164,35 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
 
       await FirebaseFirestore.instance.collection("children").add({
         "name": name.text.trim(),
-        "dob": dob.text.trim(),
-        "age": age.text.trim(),
+        "dob": selectedDate,
+        "age_display": ageController.text.trim(),
         "mother": mother.text.trim(),
-
-        // ✅ FIXED HERE
         "motherCNIC": cnic.text.trim(),
-
         "address": address.text.trim(),
         "gender": gender,
         "district": district.text.trim(),
         "contact": contactNumber.text.trim(),
-        "qrCode": qrCode,
+        "qrCode": "CH-${DateTime.now().millisecondsSinceEpoch}",
         "imageUrl": imageUrl ?? "",
         "createdAt": FieldValue.serverTimestamp(),
       });
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Child Registered Successfully")),
-      );
-
-      Navigator.pop(context);
+      if (mounted) {
+        _showSnackBar("Child Registered Successfully");
+        Navigator.pop(context);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      _showSnackBar("Error: ${e.toString()}");
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
-
-    setState(() => loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Child Registration"),
+        title: const Text("Child Registration", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF2563EB),
       ),
       body: loading
@@ -762,115 +203,71 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-
-                    GestureDetector(
-                      onTap: pickImage,
-                      child: Container(
-                        height: 120,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(10),
-                          image: imageFile != null
-                              ? DecorationImage(
-                                  image: FileImage(imageFile!),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child: imageFile == null
-                            ? const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.camera_alt,
-                                      size: 40, color: Colors.blue),
-                                  SizedBox(height: 5),
-                                  Text("Upload Child Photo"),
-                                ],
-                              )
-                            : null,
+                    // Profile Image Picker
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage: imageFile != null ? FileImage(imageFile!) : null,
+                            child: imageFile == null 
+                                ? const Icon(Icons.person, size: 60, color: Colors.grey) 
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: CircleAvatar(
+                              backgroundColor: Colors.blue,
+                              radius: 20,
+                              child: IconButton(
+                                icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                                onPressed: _showImageSourceOptions,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-
-                    const SizedBox(height: 15),
-
-                    TextFormField(
-                      controller: name,
-                      decoration: _dec("Child Name"),
-                    ),
-
-                    TextFormField(
-                      controller: dob,
-                      readOnly: true,
-                      onTap: pickDOB,
-                      decoration: _dec("Date of Birth"),
-                    ),
-
-                    TextFormField(
-                      controller: age,
-                      readOnly: true,
-                      decoration: _dec("Age"),
-                    ),
-
-                    TextFormField(
-                      controller: mother,
-                      decoration: _dec("Mother Name"),
-                    ),
-
-                    TextFormField(
-                      controller: cnic,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(13),
-                        _CnicFormatter(),
-                      ],
-                      decoration: _dec("Mother CNIC (xxxxx-xxxxxxx-x)"),
-                    ),
-
-                    TextFormField(
-                      controller: address,
-                      decoration: _dec("Address"),
-                    ),
-
+                    const SizedBox(height: 25),
+                    
+                    _buildTextField(name, "Child Name", Icons.person),
+                    _buildTextField(dobController, "Date of Birth", Icons.calendar_today, readOnly: true, onTap: pickDOB),
+                    _buildTextField(ageController, "Calculated Age", Icons.timer, readOnly: true),
+                    _buildTextField(mother, "Mother's Name", Icons.woman),
+                    _buildTextField(cnic, "Mother CNIC", Icons.badge, 
+                        keyboard: TextInputType.number, 
+                        formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(13), _CnicFormatter()]),
+                    _buildTextField(address, "Address", Icons.home),
+                    
                     DropdownButtonFormField<String>(
                       value: gender.isEmpty ? null : gender,
                       items: ["Male", "Female", "Other"]
-                          .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e),
-                              ))
+                          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                           .toList(),
                       onChanged: (v) => setState(() => gender = v!),
-                      decoration: _dec("Gender"),
+                      decoration: _dec("Gender", Icons.wc),
+                      validator: (v) => v == null ? "Required" : null,
                     ),
+                    const SizedBox(height: 15),
+                    
+                    _buildTextField(district, "District", Icons.location_city),
+                    _buildTextField(contactNumber, "Contact Number", Icons.phone, 
+                        keyboard: TextInputType.phone, 
+                        formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11), _PhoneFormatter()]),
 
-                    TextFormField(
-                      controller: district,
-                      decoration: _dec("District"),
-                    ),
-
-                    TextFormField(
-                      controller: contactNumber,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                        _PhoneFormatter(),
-                      ],
-                      decoration: _dec("03XX-XXXXXXX"),
-                    ),
-
-                    const SizedBox(height: 20),
-
+                    const SizedBox(height: 30),
                     ElevatedButton(
                       onPressed: saveChild,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF059669),
-                        minimumSize: const Size(double.infinity, 50),
+                        minimumSize: const Size(double.infinity, 55),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text("Save Child"),
-                    )
+                      child: const Text("SAVE REGISTRATION", 
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
@@ -878,50 +275,56 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
     );
   }
 
-  InputDecoration _dec(String hint) {
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {bool readOnly = false, VoidCallback? onTap, TextInputType? keyboard, List<TextInputFormatter>? formatters}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: TextFormField(
+        controller: controller,
+        readOnly: readOnly,
+        onTap: onTap,
+        keyboardType: keyboard,
+        inputFormatters: formatters,
+        decoration: _dec(hint, icon),
+        validator: (v) => (v == null || v.isEmpty) ? "Required" : null,
+      ),
+    );
+  }
+
+  InputDecoration _dec(String hint, IconData icon) {
     return InputDecoration(
-      hintText: hint,
+      prefixIcon: Icon(icon, color: Colors.blue.shade700),
+      labelText: hint,
       filled: true,
       fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.blue, width: 2)),
     );
   }
 }
 
-// CNIC FORMAT
+// --- FORMATTERS ---
 class _CnicFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(oldValue, newValue) {
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     String digits = newValue.text.replaceAll('-', '');
-
     String result = "";
     for (int i = 0; i < digits.length; i++) {
       if (i == 5 || i == 12) result += "-";
       result += digits[i];
     }
-
-    return TextEditingValue(
-      text: result,
-      selection: TextSelection.collapsed(offset: result.length),
-    );
+    return TextEditingValue(text: result, selection: TextSelection.collapsed(offset: result.length));
   }
 }
 
-// PHONE FORMAT
 class _PhoneFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(oldValue, newValue) {
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     String digits = newValue.text.replaceAll('-', '');
-
     if (digits.length > 4) {
-      return TextEditingValue(
-        text: "${digits.substring(0, 4)}-${digits.substring(4)}",
-        selection: TextSelection.collapsed(offset: digits.length + 1),
-      );
+      String res = "${digits.substring(0, 4)}-${digits.substring(4)}";
+      return TextEditingValue(text: res, selection: TextSelection.collapsed(offset: res.length));
     }
-
     return newValue;
   }
 }
