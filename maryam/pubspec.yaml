@@ -1,0 +1,39 @@
+name: project
+description: A Flutter Firebase project
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 🔥 Firebase (Core, Auth, Database, Storage)
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  firebase_storage: ^12.3.0
+
+  # 📸 Media & Images
+  image_picker: ^1.0.7
+
+  # 💾 Local storage (login remember system)
+  shared_preferences: ^2.2.3
+
+  # 📱 UI icons & Fonts
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Agar aapne images assets mein rakhi hain to yahan add karein:
+  # assets:
+  #   - assets/images/
