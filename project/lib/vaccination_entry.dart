@@ -630,7 +630,7 @@ class _VaccinationEntryPageState extends State<VaccinationEntryPage> {
               child: ElevatedButton(
                 onPressed: loading ? null : saveVaccination,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
+                  backgroundColor: const Color(0xFF004AAD),
                 ),
                 child: loading
                     ? const CircularProgressIndicator(color: Colors.white)

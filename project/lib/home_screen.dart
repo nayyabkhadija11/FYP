@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}*/
+}
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -281,6 +281,202 @@ class HomeScreen extends StatelessWidget {
               desc,
               style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}*/
+import 'package:flutter/material.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // ImmunoSphere Theme Colors
+    const Color primaryBlue = Color(0xFF1954A6);
+    const Color lightBg = Color(0xFFF3F9FF);
+
+    return Scaffold(
+      backgroundColor: lightBg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Column(
+            children: [
+              // --- Header Section (ImmunoSphere Branding) ---
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 15,
+                        offset: Offset(0, 8),
+                      )
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.shield_outlined,
+                    color: primaryBlue,
+                    size: 50,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "ImmunoSphere",
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  color: primaryBlue,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "AI-Powered Immunization Management Portal",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF475569), 
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500
+                ),
+              ),
+              const Text(
+                "Protecting Pakistan's Children, One Dose at a Time",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              ),
+              const SizedBox(height: 40),
+
+              // --- Roles Grid ---
+              Wrap(
+                spacing: 20,
+                runSpacing: 20,
+                alignment: WrapAlignment.center,
+                children: [
+                  _buildRoleCard(
+                    context,
+                    title: "Vaccinator",
+                    desc: "Record vaccinations in the field",
+                    icon: Icons.biotech_outlined,
+                    iconColor: primaryBlue,
+                    route: '/vaccinator_screen',
+                  ),
+                  _buildRoleCard(
+                    context,
+                    title: "Supervisor",
+                    desc: "Monitor campaigns and coverage",
+                    icon: Icons.admin_panel_settings_outlined,
+                    iconColor: const Color(0xFF059669), // Emerald Green
+                    route: '/supervisor_screen',
+                  ),
+                  _buildRoleCard(
+                    context,
+                    title: "Parent",
+                    desc: "Track your child's vaccinations",
+                    icon: Icons.family_restroom_outlined,
+                    iconColor: const Color(0xFF7C3AED), // Soft Purple
+                    route: '/parent_screen',
+                  ),
+                  _buildRoleCard(
+                    context,
+                    title: "Finance Officer",
+                    desc: "Manage payments and salaries",
+                    icon: Icons.payments_outlined,
+                    iconColor: const Color(0xFFD97706), // Amber
+                    route: '/finance_screen',
+                  ),
+                  _buildRoleCard(
+                    context,
+                    title: "AI Analytics",
+                    desc: "View predictions and insights",
+                    icon: Icons.insights_outlined,
+                    iconColor: const Color(0xFFDC2626), // Soft Red
+                    route: '/analytics_dashboard',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleCard(
+    BuildContext context, {
+    required String title,
+    required String desc,
+    required IconData icon,
+    required Color iconColor,
+    required String route,
+  }) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Container(
+        width: 280, // Slightly adjusted for better fit
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.blue.withOpacity(0.05)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 30),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 19, 
+                fontWeight: FontWeight.bold, 
+                color: Color(0xFF0F172A)
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              desc,
+              style: const TextStyle(
+                fontSize: 14, 
+                color: Color(0xFF64748B),
+                height: 1.4
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Row(
+              children: [
+                Text(
+                  "Get Started",
+                  style: TextStyle(
+                    color: Color(0xFF1954A6),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: Color(0xFF1954A6)),
+              ],
+            )
           ],
         ),
       ),

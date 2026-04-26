@@ -409,7 +409,7 @@ class _ParentScreenState extends State<ParentScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Parent Portal", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF004AAD),
       ),
       body: IndexedStack(
         index: currentIndex,
@@ -451,7 +451,7 @@ class _ParentScreenState extends State<ParentScreen> {
             child: ElevatedButton(
               onPressed: search,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: const Color(0xFF004AAD),
               ),
               child: const Text("Search", style: TextStyle(color: Colors.white)),
             ),

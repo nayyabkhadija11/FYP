@@ -193,7 +193,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Child Registration", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF004AAD),
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
@@ -261,7 +261,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
                     ElevatedButton(
                       onPressed: saveChild,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
+                        backgroundColor: const Color(0xFF004AAD),
                         minimumSize: const Size(double.infinity, 55),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
