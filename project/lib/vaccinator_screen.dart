@@ -1,222 +1,188 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'vaccination_entry.dart';
 import 'child_registration.dart';
 
 class VaccinatorScreen extends StatelessWidget {
   const VaccinatorScreen({super.key});
 
+  // Function to delete a record
+  Future<void> _deleteRecord(BuildContext context, String docId) async {
+    try {
+      await FirebaseFirestore.instance.collection('vaccinations').doc(docId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Record deleted successfully"), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
-      body: Column(
-        children: [
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('children').snapshots(),
+        builder: (context, childSnapshot) {
+          
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('vaccinations').snapshots(),
+            builder: (context, vacSnapshot) {
+              
+              int completed = 0;
+              int refused = 0;
+              int absent = 0;
+              int targetCount = childSnapshot.hasData ? childSnapshot.data!.docs.length : 0;
 
-          // ================= HEADER =================
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF2563EB), Color(0xFF059669)],
-              ),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Vaccinator Dashboard",
-                  style: TextStyle(color: Colors.white, fontSize: 24),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  "Lahore, Punjab",
-                  style: TextStyle(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // ================= BUTTONS =================
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-
-                Expanded(
-                  child: _button(
-                    context,
-                    "Vaccination Entry",
-                    Icons.qr_code_scanner,
-                    const Color(0xFF2563EB),
-                    VaccinationEntryPage(),
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: _button(
-                    context,
-                    "Register Child",
-                    Icons.add,
-                    const Color(0xFF059669),
-                    ChildRegistrationPage(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // ================= STATS =================
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('vaccinations')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const CircularProgressIndicator();
-                }
-
-                int completed = 0;
-                int refused = 0;
-                int absent = 0;
-
-                Map<String, int> vaccineMap = {};
-
-                for (var doc in snapshot.data!.docs) {
+              if (vacSnapshot.hasData) {
+                for (var doc in vacSnapshot.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-
-                  String status = data['status'] ?? "";
-                  String vaccine = data['vaccineType'] ?? "Unknown";
-
+                  String status = (data['status'] ?? "").toString().toLowerCase();
                   if (status == "completed") completed++;
-                  if (status == "refused") refused++;
-                  if (status == "absent") absent++;
-
-                  vaccineMap[vaccine] = (vaccineMap[vaccine] ?? 0) + 1;
+                  else if (status == "refused") refused++;
+                  else if (status == "absent") absent++;
                 }
+              }
 
-                return Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              return Column(
+                children: [
+                  _buildHeader(context),
+
+                  Transform.translate(
+                    offset: const Offset(0, -20),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          _buildStatCard("Vaccinated", completed, Colors.green, Icons.check_circle_outline),
+                          _buildStatCard("Refused", refused, Colors.red, Icons.cancel_outlined),
+                          _buildStatCard("Absent", absent, Colors.orange, Icons.people_outline),
+                          _buildStatCard("Target", targetCount, Colors.blue, Icons.assignment_outlined),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
                       children: [
-                        _stat("Completed", completed, Colors.green),
-                        _stat("Refused", refused, Colors.red),
-                        _stat("Absent", absent, Colors.orange),
+                        Expanded(child: _actionButton(context, "Scan QR Code", Icons.qr_code_scanner, const Color(0xFF1D4ED8), const VaccinationEntryPage())),
+                        const SizedBox(width: 12),
+                        Expanded(child: _actionButton(context, "Register Child", Icons.add, const Color(0xFF059669), const ChildRegistrationPage())),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      children: vaccineMap.entries.map((e) {
-                        return Chip(label: Text("${e.key}: ${e.value}"));
-                      }).toList(),
-                    )
-                  ],
-                );
-              },
-            ),
-          ),
+                  ),
 
-          const SizedBox(height: 10),
+                  const SizedBox(height: 20),
 
-          // ================= LIST =================
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('vaccinations')
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text("Recent Activity", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
 
-                final docs = snapshot.data!.docs;
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data =
-                        docs[index].data() as Map<String, dynamic>;
-
-                    return Card(
-                      child: ListTile(
-                        title: Text(data['childName'] ?? ""),
-                        subtitle: Text(
-                            "${data['vaccineType']} • ${data['status']}"),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                  Expanded(
+                    child: vacSnapshot.hasData 
+                      ? ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: vacSnapshot.data!.docs.length,
+                          itemBuilder: (context, index) {
+                            final doc = vacSnapshot.data!.docs[index];
+                            final data = doc.data() as Map<String, dynamic>;
+                            
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                leading: const CircleAvatar(backgroundColor: Color(0xFFF1F5F9), child: Icon(Icons.person)),
+                                title: Text(data['childName'] ?? "Unknown Child", style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text("Vaccine: ${data['vaccineType'] ?? 'N/A'}\nStatus: ${data['status'] ?? 'N/A'}"),
+                                
+                                // UPDATED: Trailing ab clickable delete button hai
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.cancel, color: Colors.redAccent),
+                                  onPressed: () {
+                                    // Delete confirmation dialog
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text("Delete Record?"),
+                                        content: const Text("Are you sure you want to remove this vaccination entry?"),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("No")),
+                                          TextButton(
+                                            onPressed: () {
+                                              _deleteRecord(context, doc.id);
+                                              Navigator.pop(ctx);
+                                            }, 
+                                            child: const Text("Yes, Delete", style: TextStyle(color: Colors.red))
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : const Center(child: CircularProgressIndicator()),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }
 
-  // ================= BUTTON =================
-  Widget _button(BuildContext context, String text, IconData icon,
-      Color color, Widget page) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => page),
-        );
-      },
-      child: Container(
-        height: 55,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(text, style: const TextStyle(color: Colors.white)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ================= STATS BOX =================
-  Widget _stat(String title, int count, Color color) {
+  // Header, StatCard, and ActionButton design methods (remain the same as your previous code)
+  Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 40),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(colors: [Color(0xFF0066FF), Color(0xFF00B16A)]),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "$count",
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(title),
+          IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
+          const Text("Vaccinator Dashboard", style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+          const Text("Lahore, Punjab", style: TextStyle(color: Colors.white70)),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatCard(String title, int count, Color color, IconData icon) {
+    return Container(
+      width: 150, margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text("$count", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+          Icon(icon, color: color),
+        ]),
+        const SizedBox(height: 4),
+        Text(title, style: const TextStyle(color: Colors.black54, fontSize: 14)),
+      ]),
+    );
+  }
+
+  Widget _actionButton(BuildContext context, String text, IconData icon, Color color, Widget page) {
+    return ElevatedButton(
+      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+      style: ElevatedButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, color: Colors.white, size: 20), const SizedBox(width: 8), Flexible(child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)))]),
     );
   }
 }

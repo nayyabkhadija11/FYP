@@ -62,7 +62,9 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}*/
+}
+
+*/
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 

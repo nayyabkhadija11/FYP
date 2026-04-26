@@ -208,7 +208,7 @@ class HomeScreen extends StatelessWidget {
                     desc: "Track your child's vaccinations",
                     icon: Icons.child_care,
                     iconColor: const Color(0xFFA855F7),
-                    route: '/parent_dashboard',
+                    route: '/parent_screen',
                   ),
                   _buildRoleCard(
                     context,
