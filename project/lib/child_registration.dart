@@ -16,6 +16,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
+  final childIdController = TextEditingController(); // Naya controller for Manual ID
   final name = TextEditingController();
   final dobController = TextEditingController();
   final ageController = TextEditingController();
@@ -27,20 +28,18 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
 
   DateTime? selectedDate;
   String gender = "";
-  String qrCode = "";
   bool loading = false;
 
   File? imageFile;
   String? imageUrl;
   final ImagePicker picker = ImagePicker();
 
-  // --- IMPROVED CAMERA/GALLERY LOGIC ---
+  // --- IMAGE PICKER LOGIC ---
   Future<void> pickImage(ImageSource source) async {
     try {
-      // imageQuality set karne se Firebase upload fast hota hai aur memory crash nahi hoti
       final XFile? picked = await picker.pickImage(
         source: source,
-        imageQuality: 50, // Optimize image for mobile
+        imageQuality: 50,
         maxWidth: 1000,
       );
       
@@ -68,7 +67,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
               title: Text("Select Image", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              leading: const Icon(Icons.camera_alt, color: Color(0xFF004AAD)),
               title: const Text("Take Photo from Camera"),
               onTap: () {
                 Navigator.pop(context);
@@ -76,7 +75,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.blue),
+              leading: const Icon(Icons.photo_library, color: Color(0xFF004AAD)),
               title: const Text("Choose from Gallery"),
               onTap: () {
                 Navigator.pop(context);
@@ -132,7 +131,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
     }
   }
 
-  // --- FIREBASE LOGIC ---
+  // --- FIREBASE SAVE LOGIC ---
   Future<String> uploadImage(File file) async {
     String fileName = "children/${DateTime.now().millisecondsSinceEpoch}.jpg";
     Reference ref = FirebaseStorage.instance.ref().child(fileName);
@@ -163,6 +162,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
       }
 
       await FirebaseFirestore.instance.collection("children").add({
+        "childId": childIdController.text.trim(), // Vaccinator ki manual ID
         "name": name.text.trim(),
         "dob": selectedDate,
         "age_display": ageController.text.trim(),
@@ -172,7 +172,6 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
         "gender": gender,
         "district": district.text.trim(),
         "contact": contactNumber.text.trim(),
-        "qrCode": "CH-${DateTime.now().millisecondsSinceEpoch}",
         "imageUrl": imageUrl ?? "",
         "createdAt": FieldValue.serverTimestamp(),
       });
@@ -192,8 +191,9 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Child Registration", style: TextStyle(color: Colors.white)),
+        title: const Text("Child Registration", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF004AAD),
+        elevation: 0,
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
@@ -203,7 +203,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Profile Image Picker
+                    // --- Profile Image ---
                     Center(
                       child: Stack(
                         children: [
@@ -219,7 +219,7 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
                             bottom: 0,
                             right: 0,
                             child: CircleAvatar(
-                              backgroundColor: Colors.blue,
+                              backgroundColor: const Color(0xFF004AAD),
                               radius: 20,
                               child: IconButton(
                                 icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
@@ -232,15 +232,25 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
                     ),
                     const SizedBox(height: 25),
                     
+                    // --- Registration Fields ---
+                    _buildTextField(childIdController, "Child Registration ID (Manual)", Icons.qr_code_scanner),
                     _buildTextField(name, "Child Name", Icons.person),
                     _buildTextField(dobController, "Date of Birth", Icons.calendar_today, readOnly: true, onTap: pickDOB),
                     _buildTextField(ageController, "Calculated Age", Icons.timer, readOnly: true),
                     _buildTextField(mother, "Mother's Name", Icons.woman),
+                    
+                    // CNIC Field
                     _buildTextField(cnic, "Mother CNIC", Icons.badge, 
                         keyboard: TextInputType.number, 
-                        formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(13), _CnicFormatter()]),
+                        formatters: [
+                          FilteringTextInputFormatter.digitsOnly, 
+                          LengthLimitingTextInputFormatter(13), 
+                          _CnicFormatter()
+                        ]),
+                    
                     _buildTextField(address, "Address", Icons.home),
                     
+                    // Gender Dropdown
                     DropdownButtonFormField<String>(
                       value: gender.isEmpty ? null : gender,
                       items: ["Male", "Female", "Other"]
@@ -253,21 +263,30 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
                     const SizedBox(height: 15),
                     
                     _buildTextField(district, "District", Icons.location_city),
+                    
+                    // Contact Field
                     _buildTextField(contactNumber, "Contact Number", Icons.phone, 
                         keyboard: TextInputType.phone, 
-                        formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11), _PhoneFormatter()]),
+                        formatters: [
+                          FilteringTextInputFormatter.digitsOnly, 
+                          LengthLimitingTextInputFormatter(11), 
+                          _PhoneFormatter()
+                        ]),
 
                     const SizedBox(height: 30),
+                    
                     ElevatedButton(
                       onPressed: saveChild,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF004AAD),
                         minimumSize: const Size(double.infinity, 55),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
                       ),
                       child: const Text("SAVE REGISTRATION", 
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -292,13 +311,15 @@ class _ChildRegistrationPageState extends State<ChildRegistrationPage> {
 
   InputDecoration _dec(String hint, IconData icon) {
     return InputDecoration(
-      prefixIcon: Icon(icon, color: Colors.blue.shade700),
+      prefixIcon: Icon(icon, color: const Color(0xFF004AAD)),
       labelText: hint,
+      labelStyle: const TextStyle(fontSize: 14),
       filled: true,
       fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.blue, width: 2)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF004AAD), width: 2)),
     );
   }
 }

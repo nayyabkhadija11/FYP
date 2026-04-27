@@ -286,7 +286,7 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-}*/
+}
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -476,6 +476,120 @@ class HomeScreen extends StatelessWidget {
                 ),
                 Icon(Icons.chevron_right, size: 18, color: Color(0xFF1954A6)),
               ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}*/
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'signup_screen.dart';
+
+// your screens
+import 'vaccinator_screen.dart';
+import 'supervisor_screen.dart';
+import 'parent_screen.dart';
+import 'finance_screen.dart';
+import 'analytics_dashboard.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final email = TextEditingController();
+  final password = TextEditingController();
+
+  Future<void> login() async {
+    try {
+      // ✔ YOUR ORIGINAL LOGIN (UNCHANGED)
+      UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email.text.trim(),
+        password: password.text.trim(),
+      );
+
+      // 🔥 ONLY ADDITION START (ROLE SYSTEM)
+      String uid = userCredential.user!.uid;
+
+      DocumentSnapshot userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+      String role = userDoc['role'];
+
+      if (!mounted) return;
+
+      if (role == "vaccinator") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const VaccinatorScreen()),
+        );
+      } else if (role == "supervisor") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const SupervisorScreen()),
+        );
+      } else if (role == "parent") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ParentScreen()),
+        );
+      } else if (role == "finance") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const FinanceScreen()),
+        );
+      } else if (role == "analytics") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AnalyticsDashboard()),
+        );
+      }
+      // 🔥 ONLY ADDITION END
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Login")),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: email,
+              decoration: const InputDecoration(labelText: "Email"),
+            ),
+            TextField(
+              controller: password,
+              decoration: const InputDecoration(labelText: "Password"),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: login,
+              child: const Text("Login"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SignupScreen()),
+                );
+              },
+              child: const Text("Create Account"),
             )
           ],
         ),

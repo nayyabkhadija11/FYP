@@ -8,7 +8,6 @@ import 'firebase_options.dart';
 import 'splash_screen.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
-import 'home_screen.dart';
 import 'vaccinator_screen.dart';
 import 'parent_screen.dart';
 import 'supervisor_screen.dart';
@@ -60,7 +59,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
-        '/home': (context) => const HomeScreen(),
+        
         '/vaccinator_screen': (context) => VaccinatorScreen(),
         '/parent_screen': (context) => const ParentScreen(),
         '/supervisor_screen': (context) => const SupervisorScreen(),
