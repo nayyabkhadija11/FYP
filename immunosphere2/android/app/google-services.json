@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "430161966794",
+    "project_id": "immunosphere2",
+    "storage_bucket": "immunosphere2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:430161966794:android:98e2914d0aa884d98e6633",
+        "android_client_info": {
+          "package_name": "com.example.immunosphere2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCruei11qj04IwhVzk-mAWUFN-N3FDWZR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
