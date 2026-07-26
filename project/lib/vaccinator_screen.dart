@@ -1449,7 +1449,7 @@ class VaccinatorScreen extends StatelessWidget {
       ),
     );
   }
-}*/
+}
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'vaccination_entry.dart';
@@ -1768,6 +1768,303 @@ class VaccinatorScreen extends StatelessWidget {
               ),
             ),
           )
+        ],
+      ),
+    );
+  }
+}*/
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'vaccination_entry.dart';
+import 'child_registration.dart';
+
+class VaccinatorScreen extends StatelessWidget {
+  const VaccinatorScreen({super.key});
+
+  // Theme Colors based on ImmunoSphere Branding
+  static const Color primaryBlue = Color(0xFF004AAD);
+  static const Color accentBlue = Color(0xFFEBF2FF);
+  static const Color surfaceWhite = Color(0xFFF8FAFC);
+  static const Color textDark = Color(0xFF1E293B);
+
+  Future<void> _deleteRecord(BuildContext context, String docId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('vaccinations')
+          .doc(docId)
+          .delete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Record deleted successfully"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: surfaceWhite, // Clean background
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('children').snapshots(),
+        builder: (context, childSnapshot) {
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('vaccinations').snapshots(),
+            builder: (context, vacSnapshot) {
+
+              int completed = 0;
+              int refused = 0;
+              int absent = 0;
+              Set<String> vaccinatedChildren = {};
+
+              if (!childSnapshot.hasData || !vacSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator(color: primaryBlue));
+              }
+
+              final childrenDocs = childSnapshot.data!.docs;
+              final vacDocs = vacSnapshot.data!.docs;
+
+              for (var doc in vacDocs) {
+                final data = doc.data() as Map<String, dynamic>;
+                String status = (data['status'] ?? "").toString().toLowerCase();
+                String childId = (data['childId'] ?? doc.id).toString();
+
+                if (status == "completed") {
+                  completed++;
+                  vaccinatedChildren.add(childId);
+                } else if (status == "refused") {
+                  refused++;
+                } else if (status == "absent") {
+                  absent++;
+                }
+              }
+
+              Set<String> allChildren = {};
+              for (var doc in childrenDocs) {
+                final data = doc.data() as Map<String, dynamic>;
+                String id = (data['childId'] ?? doc.id).toString();
+                allChildren.add(id);
+              }
+
+              allChildren.removeAll(vaccinatedChildren);
+              int targetCount = allChildren.length;
+              if (targetCount < 0) targetCount = 0;
+
+              return Column(
+                children: [
+                  _buildHeader(context),
+
+                  Transform.translate(
+                    offset: const Offset(0, -30),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          _buildStatCard("Vaccinated", completed, const Color(0xFF059669), Icons.verified_user),
+                          _buildStatCard("Refused", refused, const Color(0xFFDC2626), Icons.block),
+                          _buildStatCard("Absent", absent, const Color(0xFFD97706), Icons.person_off),
+                          _buildStatCard("Target", targetCount, primaryBlue, Icons.track_changes),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _actionButton(
+                            context,
+                            "Vaccination Entry",
+                            Icons.qr_code_scanner_rounded,
+                            primaryBlue,
+                            const VaccinationEntryPage(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _actionButton(
+                            context,
+                            "Register Child",
+                            Icons.person_add_alt_1_rounded,
+                            const Color(0xFF004AAD), // Dark contrast button
+                            const ChildRegistrationPage(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Recent Activity",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+                      ),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: vacDocs.length,
+                      itemBuilder: (context, index) {
+                        final doc = vacDocs[index];
+                        final data = doc.data() as Map<String, dynamic>;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.blue.withOpacity(0.1)),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))
+                            ],
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: accentBlue,
+                              child: const Icon(Icons.person, color: primaryBlue),
+                            ),
+                            title: Text(
+                              data['childName'] ?? "Unknown Child",
+                              style: const TextStyle(fontWeight: FontWeight.w600, color: textDark),
+                            ),
+                            subtitle: Text(
+                              "Vaccine: ${data['vaccineType'] ?? 'N/A'} • ${data['status'] ?? 'N/A'}",
+                              style: const TextStyle(color: Colors.black54),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    title: const Text("Delete Record?"),
+                                    content: const Text("This action cannot be undone."),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                        onPressed: () {
+                                          _deleteRecord(context, doc.id);
+                                          Navigator.pop(ctx);
+                                        },
+                                        child: const Text("Delete", style: TextStyle(color: Colors.white)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 50),
+      decoration: const BoxDecoration(
+        color: primaryBlue,
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            "Vaccinator Dashboard",
+            style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.white.withOpacity(0.7), size: 14),
+              const SizedBox(width: 4),
+              Text("Lahore, Punjab", style: TextStyle(color: Colors.white.withOpacity(0.8))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, int count, Color color, IconData icon) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: primaryBlue.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 8))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "$count",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark),
+          ),
+          Text(title, style: const TextStyle(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton(BuildContext context, String text, IconData icon, Color color, Widget page) {
+    return ElevatedButton(
+      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 8),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         ],
       ),
     );

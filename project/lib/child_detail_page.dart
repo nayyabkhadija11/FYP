@@ -973,7 +973,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> {
       appBar: AppBar(
         title: const Text("Child Details",
             style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.blue,
+        backgroundColor: const Color(0xFF004AAD),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -1007,7 +1007,12 @@ class _ChildDetailPageState extends State<ChildDetailPage> {
 
                   const SizedBox(height: 8),
 
-                  LinearProgressIndicator(value: progress),
+                  LinearProgressIndicator(
+  value: progress,
+  minHeight: 10,
+  backgroundColor: Colors.grey.shade300,
+  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF004AAD)),
+),
 
                   const SizedBox(height: 30),
 
@@ -1015,7 +1020,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF5EC),
+                      color: const Color(0xFFF3F9FF),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -1046,6 +1051,10 @@ class _ChildDetailPageState extends State<ChildDetailPage> {
 
                         ElevatedButton.icon(
                           icon: const Icon(Icons.list),
+                           style: ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFF004AAD), // ⭐ BUTTON COLOR HERE
+                           foregroundColor: Colors.white,
+  ),
                           label: const Text("View Full Vaccination Details"),
                           onPressed: () {
                             Navigator.push(
@@ -1077,7 +1086,7 @@ class FullVaccinationPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("All Vaccination Records"),
-        backgroundColor: Colors.blue,
+        backgroundColor: const Color(0xFF004AAD),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
