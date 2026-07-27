@@ -88,7 +88,7 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: Stack(
         children: [
-          // 1. PURPLE HEADER BACKGROUND (Height adjust ki taakay text fit rahe)
+          // 1. PURPLE HEADER BACKGROUND
           Container(
             height: 180,
             width: double.infinity,
@@ -146,73 +146,75 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
             ),
           ),
 
-          // 2. SCROLLABLE CONTENT (Top padding 105 di hai taakay text poora dikhe)
+          // 2. SCROLLABLE CONTENT
           SafeArea(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(top: 105, left: 14, right: 14, bottom: 12),
+              padding: const EdgeInsets.only(top: 105, left: 14, right: 14, bottom: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 4 STAT CARDS GRID (Sleeker & Shorter Cards)
-                  GridView.count(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 2.1, // Aspect ratio barha diya taakay cards aur chote hon
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      // Today's Vaccinations
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('vaccinations')
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          int count = snapshot.hasData ? snapshot.data!.docs.length : 2;
-                          return _buildExactStatCard(
-                              "Today's Vaccinations", "$count", const Color(0xFF4F46E5));
-                        },
-                      ),
+                  // STREAMBUILDER FOR ALL CHILDREN METRICS
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('children')
+                        .snapshots(),
+                    builder: (context, childrenSnapshot) {
+                      int totalChildren = 0;
+                      int missedRefusedCount = 0;
+                      int pendingCount = 0;
 
-                      // Registered Children
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('children')
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          int count = snapshot.hasData ? snapshot.data!.docs.length : 3;
-                          return _buildExactStatCard(
-                              "Registered Children", "$count", const Color(0xFF10B981));
-                        },
-                      ),
+                      if (childrenSnapshot.hasData) {
+                        final docs = childrenSnapshot.data!.docs;
+                        totalChildren = docs.length;
 
-                      // Pending Cases
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('vaccinations')
-                            .where('status', isEqualTo: 'pending')
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                          return _buildExactStatCard(
-                              "Pending Cases", "$count", const Color(0xFF6366F1));
-                        },
-                      ),
+                        for (var doc in docs) {
+                          var data = doc.data() as Map<String, dynamic>;
+                          String status = (data['status'] ?? '').toString().toLowerCase();
 
-                      // Missed Cases
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('vaccinations')
-                            .where('status', isEqualTo: 'missed')
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                          return _buildExactStatCard(
-                              "Missed Cases", "$count", const Color(0xFFF97316));
-                        },
-                      ),
-                    ],
+                          if (status == 'missed' || status == 'refused') {
+                            missedRefusedCount++;
+                          } else if (status == 'due' || status == 'pending') {
+                            pendingCount++;
+                          }
+                        }
+                      }
+
+                      return GridView.count(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 2.1,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          // Today's Vaccinations
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('vaccination_tasks')
+                                .where('status', isEqualTo: 'vaccinated')
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                              return _buildExactStatCard(
+                                  "Today's Vaccinations", "$count", const Color(0xFF4F46E5));
+                            },
+                          ),
+
+                          // Registered Children
+                          _buildExactStatCard(
+                              "Registered Children", "$totalChildren", const Color(0xFF10B981)),
+
+                          // Pending Cases
+                          _buildExactStatCard(
+                              "Pending Cases", "$pendingCount", const Color(0xFF6366F1)),
+
+                          // Missed / Refused Cases (Fixed)
+                          _buildExactStatCard(
+                              "Missed/Refused", "$missedRefusedCount", const Color(0xFFF97316)),
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 16),
@@ -299,7 +301,7 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
     );
   }
 
-  // Compact Stat Card
+  // Stat Card Widget
   Widget _buildExactStatCard(String title, String number, Color numberColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -342,6 +344,7 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
     );
   }
 
+  // Quick Action Button
   Widget _buildQuickActionButton({
     required IconData icon,
     required String label,

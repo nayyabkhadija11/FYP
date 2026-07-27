@@ -10,7 +10,7 @@ class SearchChildScreen extends StatefulWidget {
 }
 
 class _SearchChildScreenState extends State<SearchChildScreen> {
-  int _activeFilter = 0;
+  int _activeFilter = 0; // 0: All, 1: Due, 2: Vaccinated, 3: Refused/Missed
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
@@ -18,9 +18,11 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.trim().toLowerCase();
-      });
+      if (mounted) {
+        setState(() {
+          _searchQuery = _searchController.text.trim().toLowerCase();
+        });
+      }
     });
   }
 
@@ -52,52 +54,61 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF3F51B5)),
+              child: CircularProgressIndicator(color: Color(0xFF5C33CF)),
             );
           }
 
           if (snapshot.hasError) {
-            return const Center(child: Text('Error loading children data.'));
+            return const Center(
+              child: Text('Error loading children directory.'),
+            );
           }
 
           final allDocs = snapshot.data?.docs ?? [];
 
-          // Process & Filter Data locally for responsive search and filter experience
+          // Parse Data safely from Firestore without fallback artifacts
           List<Map<String, dynamic>> childrenList = allDocs.map((doc) {
             var data = doc.data() as Map<String, dynamic>;
             return {
               'docId': doc.id,
-              'id': data['regNo'] ?? doc.id.substring(0, 6).toUpperCase(),
-              'name': data['fullName'] ?? data['name'] ?? 'Unknown',
+              'id': data['regNo'] ?? (doc.id.length >= 6 ? doc.id.substring(0, 6).toUpperCase() : doc.id.toUpperCase()),
+              'name': data['fullName'] ?? data['childName'] ?? data['name'] ?? 'N/A',
+              'fatherName': data['fatherName'] ?? 'N/A',
               'age': data['age'] ?? 'N/A',
               'gender': data['gender'] ?? 'N/A',
               'village': data['village'] ?? data['address'] ?? 'N/A',
-              'cnic': data['cnic'] ?? '',
+              'cnic': data['cnic'] ?? data['guardianCnic'] ?? '',
               'nextDue': data['nextDue'] ?? 'N/A',
-              'status': data['status'] ?? 'Vaccinated',
+              'status': data['status'] ?? 'Pending',
             };
           }).toList();
 
-          // Apply Status Filter
+          // Calculate Dynamic Category Counts
+          int countAll = childrenList.length;
+          int countDue = childrenList.where((c) => c['status'].toString().toLowerCase().contains('due')).length;
+          int countVaccinated = childrenList.where((c) => c['status'].toString().toLowerCase().contains('vaccinated')).length;
+          int countMissed = childrenList.where((c) => 
+            c['status'].toString().toLowerCase().contains('missed') || 
+            c['status'].toString().toLowerCase().contains('refused')
+          ).length;
+
+          // Apply Filter Chips Selection
           List<Map<String, dynamic>> statusFiltered = childrenList.where((child) {
-            if (_activeFilter == 1) return child['status'].toString().contains('Due');
-            if (_activeFilter == 2) return child['status'].toString().contains('Vaccinated');
-            if (_activeFilter == 3) return child['status'].toString().contains('Missed');
-            return true; // Filter 0: All
+            final st = child['status'].toString().toLowerCase();
+            if (_activeFilter == 1) return st.contains('due');
+            if (_activeFilter == 2) return st.contains('vaccinated');
+            if (_activeFilter == 3) return st.contains('missed') || st.contains('refused');
+            return true; // All
           }).toList();
 
-          // Apply Search Query Filter
+          // Apply Real-Time Search Query (Name, RegNo/ID, CNIC, Father Name)
           List<Map<String, dynamic>> finalFilteredList = statusFiltered.where((child) {
             final nameMatch = child['name'].toString().toLowerCase().contains(_searchQuery);
+            final fatherMatch = child['fatherName'].toString().toLowerCase().contains(_searchQuery);
             final idMatch = child['id'].toString().toLowerCase().contains(_searchQuery);
             final cnicMatch = child['cnic'].toString().toLowerCase().contains(_searchQuery);
-            return nameMatch || idMatch || cnicMatch;
+            return nameMatch || fatherMatch || idMatch || cnicMatch;
           }).toList();
-
-          int countAll = childrenList.length;
-          int countDue = childrenList.where((c) => c['status'].toString().contains('Due')).length;
-          int countVaccinated = childrenList.where((c) => c['status'].toString().contains('Vaccinated')).length;
-          int countMissed = childrenList.where((c) => c['status'].toString().contains('Missed')).length;
 
           return Padding(
             padding: const EdgeInsets.all(16.0),
@@ -110,7 +121,7 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                       child: TextField(
                         controller: _searchController,
                         decoration: InputDecoration(
-                          hintText: 'Search by name, Child ID or CNIC',
+                          hintText: 'Search by name, father name, ID or CNIC',
                           hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
                           prefixIcon: const Icon(Icons.search, color: Colors.grey),
                           suffixIcon: _searchQuery.isNotEmpty
@@ -148,13 +159,13 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                       const SizedBox(width: 6),
                       _buildFilterChip('Vaccinated ($countVaccinated)', 2),
                       const SizedBox(width: 6),
-                      _buildFilterChip('Missed ($countMissed)', 3),
+                      _buildFilterChip('Missed/Refused ($countMissed)', 3),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // CHILDREN LIST
+                // CHILDREN LIST DISPLAY
                 Expanded(
                   child: finalFilteredList.isEmpty
                       ? Center(
@@ -164,7 +175,7 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                               Icon(Icons.search_off, size: 48, color: Colors.grey),
                               SizedBox(height: 12),
                               Text(
-                                'No children found matching criteria.',
+                                'No child records found.',
                                 style: TextStyle(color: Colors.grey, fontSize: 13),
                               ),
                             ],
@@ -196,7 +207,7 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                                     const CircleAvatar(
                                       radius: 24,
                                       backgroundColor: Color(0xFFEEF2FF),
-                                      child: Icon(Icons.child_care, color: Color(0xFF3F51B5)),
+                                      child: Icon(Icons.child_care, color: Color(0xFF5C33CF)),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -206,18 +217,22 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text(
-                                                child['name'],
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
+                                              Expanded(
+                                                child: Text(
+                                                  child['name'],
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               _buildBadge(child['status']),
                                             ],
                                           ),
+                                          const SizedBox(height: 2),
                                           Text(
-                                            'ID: ${child['id']}',
+                                            'ID: ${child['id']}  |  S/O: ${child['fatherName']}',
                                             style: const TextStyle(color: Colors.grey, fontSize: 11),
                                           ),
                                           const SizedBox(height: 4),
@@ -232,15 +247,17 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                child['status'].toString().contains('Missed')
-                                                    ? child['nextDue']
+                                                child['status'].toString().toLowerCase().contains('missed') || 
+                                                child['status'].toString().toLowerCase().contains('refused')
+                                                    ? 'Status: ${child['status']}'
                                                     : 'Next Due: ${child['nextDue']}',
                                                 style: TextStyle(
-                                                  color: child['status'].toString().contains('Missed')
+                                                  color: child['status'].toString().toLowerCase().contains('missed') || 
+                                                         child['status'].toString().toLowerCase().contains('refused')
                                                       ? const Color(0xFFEF4444)
                                                       : Colors.grey.shade600,
                                                   fontSize: 10,
-                                                  fontWeight: child['status'].toString().contains('Missed')
+                                                  fontWeight: child['status'].toString().toLowerCase().contains('missed')
                                                       ? FontWeight.bold
                                                       : FontWeight.normal,
                                                 ),
@@ -248,11 +265,13 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
                                             ],
                                           ),
                                           Text(
-                                            'Village: ${child['village']}',
+                                            'Address: ${child['village']}',
                                             style: TextStyle(
                                               color: Colors.grey.shade600,
                                               fontSize: 11,
                                             ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ],
                                       ),
@@ -280,10 +299,10 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF3F51B5) : Colors.white,
+          color: isSelected ? const Color(0xFF5C33CF) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF3F51B5) : Colors.grey.shade300,
+            color: isSelected ? const Color(0xFF5C33CF) : Colors.grey.shade300,
           ),
         ),
         child: Text(
@@ -299,13 +318,14 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
   }
 
   Widget _buildBadge(String status) {
+    String st = status.toLowerCase();
     Color bg = const Color(0xFFECFDF5);
     Color text = const Color(0xFF10B981);
 
-    if (status.contains('Due')) {
+    if (st.contains('due')) {
       bg = const Color(0xFFFFFBEB);
       text = const Color(0xFFF59E0B);
-    } else if (status.contains('Missed')) {
+    } else if (st.contains('missed') || st.contains('refused')) {
       bg = const Color(0xFFFEF2F2);
       text = const Color(0xFFEF4444);
     }
@@ -314,7 +334,7 @@ class _SearchChildScreenState extends State<SearchChildScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
       child: Text(
-        status,
+        status.toUpperCase(),
         style: TextStyle(color: text, fontSize: 9, fontWeight: FontWeight.bold),
       ),
     );

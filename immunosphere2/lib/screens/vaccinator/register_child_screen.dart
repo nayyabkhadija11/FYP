@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -28,6 +29,30 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
     final random = Random();
     final number = random.nextInt(900000) + 100000;
     return 'CH-$number';
+  }
+
+  // Dynamic Age Formatter (Handles Months and Years accurately)
+  String _calculateFormattedAge(DateTime dob) {
+    final now = DateTime.now();
+    int years = now.year - dob.year;
+    int months = now.month - dob.month;
+    int days = now.day - dob.day;
+
+    if (days < 0) {
+      months -= 1;
+    }
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+
+    if (years > 0) {
+      return '$years Year${years > 1 ? 's' : ''}${months > 0 ? ' $months Mon' : ''}';
+    } else if (months > 0) {
+      return '$months Month${months > 1 ? 's' : ''}';
+    } else {
+      return 'Newborn';
+    }
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -64,24 +89,53 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
 
     try {
       final childId = _generateChildId();
+      final formattedAge = _calculateFormattedAge(_selectedDate!);
+      final childName = _nameController.text.trim();
+      final villageName = _villageController.text.trim().isNotEmpty 
+          ? _villageController.text.trim() 
+          : 'N/A';
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-      // Schema standardizations matching ImmunoSphere app directory
-      await FirebaseFirestore.instance.collection('children').doc(childId).set({
+      final WriteBatch batch = FirebaseFirestore.instance.batch();
+
+      // 1. Save Child Profile Document
+      DocumentReference childDocRef = FirebaseFirestore.instance.collection('children').doc(childId);
+      batch.set(childDocRef, {
         'regNo': childId,
         'childId': childId,
-        'fullName': _nameController.text.trim(),
-        'name': _nameController.text.trim(),
-        'dob': _selectedDate!.toIso8601String(),
-        'age': '${DateTime.now().year - _selectedDate!.year} Years',
+        'fullName': childName,
+        'name': childName,
+        'dob': Timestamp.fromDate(_selectedDate!), // Changed to Timestamp for Firestore queries
+        'age': formattedAge,
         'gender': _selectedGender,
         'motherName': _motherNameController.text.trim(),
         'cnic': _cnicController.text.trim(),
         'phoneNumber': _phoneController.text.trim(),
-        'village': _villageController.text.trim().isNotEmpty ? _villageController.text.trim() : 'N/A',
+        'village': villageName,
         'registeredAt': FieldValue.serverTimestamp(),
-        'status': 'Due Tomorrow', // Default status upon initial registration
-        'nextDue': 'Pending Vaccination Schedule',
+        'registeredBy': currentUserId,
+        'status': 'Due Today',
+        'nextDue': 'BCG, OPV-0, Hep-B',
       });
+
+      // 2. Automatically Create Initial Vaccination Task for Dashboard
+      DocumentReference taskDocRef = FirebaseFirestore.instance.collection('vaccination_tasks').doc();
+      batch.set(taskDocRef, {
+        'taskId': taskDocRef.id,
+        'childId': childId,
+        'childName': childName,
+        'vaccineName': 'BCG, OPV-0, Hep-B (At Birth)',
+        'vaccines': 'BCG, OPV-0, Hep-B (At Birth)',
+        'village': villageName,
+        'ageFormatted': formattedAge,
+        'status': 'dueToday',
+        'taskType': 'routine',
+        'createdAt': FieldValue.serverTimestamp(),
+        'administeredBy': currentUserId,
+      });
+
+      // Commit both writes atomically
+      await batch.commit();
 
       if (!mounted) return;
 
@@ -239,7 +293,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
                 ElevatedButton(
                   onPressed: _isLoading ? null : _registerChild,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3F51B5),
+                    backgroundColor: const Color(0xFF5C33CF),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
@@ -266,7 +320,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF3F51B5))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF5C33CF))),
       errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red)),
     );
   }
