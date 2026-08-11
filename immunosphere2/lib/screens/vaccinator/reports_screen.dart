@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:immunosphere2/helpers/vaccination_status_helper.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({Key? key}) : super(key: key);
@@ -338,13 +339,113 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   }
 
   // ==========================================
-  // 3. MONTHLY REPORT TAB (CALENDAR FIXED & DYNAMIC)
+  // 3. MONTHLY REPORT TAB
   // ==========================================
+  // FIXED: Routine ke Missed/Pending/Vaccinated/Refused ab EPI schedule
+  // (due-date based) logic se live calculate hote hain — Dashboard aur
+  // Child Profile jaisi hi calculation — kyunki 'missed' status kabhi
+  // Firestore mein literal field ke tor par likha hi nahi jata.
+  // Polio tab bilkul pehle jaisa hi (unchanged) hai.
   Widget _buildMonthlyReportTab(List<QueryDocumentSnapshot> docs) {
     bool isRoutine = _selectedMonthlyToggle == 0;
     String selectedMonthText = DateFormat('MMMM yyyy').format(_selectedMonthDate);
 
-    // Filter Docs strictly matching Vaccinator's entry month
+    // FIX: Agar selected month abhi future mein hai (aaj se aage), tou
+    // us mahine mein kuch bhi "hua" nahi ho sakta — sab kuch 0 hona
+    // chahiye jab tak wo mahine waqai shuru na ho. Pehle code future
+    // months ke liye bhi "due" doses ko "Pending" gin raha tha, jo
+    // September jaise mahine mein bhi galat non-zero numbers de raha tha.
+    final now = DateTime.now();
+    final isFutureMonth = _selectedMonthDate.year > now.year ||
+        (_selectedMonthDate.year == now.year && _selectedMonthDate.month > now.month);
+
+    if (isRoutine && isFutureMonth) {
+      return _buildMonthlyReportBody(
+        isRoutine: isRoutine,
+        selectedMonthText: selectedMonthText,
+        totalVaccinated: 0,
+        pendingCount: 0,
+        missedCount: 0,
+        refusedCount: 0,
+        vaccineCounts: {},
+      );
+    }
+
+    if (isRoutine) {
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('children').snapshots(),
+        builder: (context, childrenSnapshot) {
+          final childDocs = childrenSnapshot.data?.docs ?? [];
+
+          List<Map<String, dynamic>> allVaccinationDocs =
+              docs.map((d) => d.data() as Map<String, dynamic>).toList();
+          final grouped = VaccinationStatusHelper.groupRecordsByChildId(allVaccinationDocs);
+
+          int totalVaccinated = 0;
+          int pendingCount = 0;
+          int missedCount = 0;
+          int refusedCount = 0;
+          Map<String, Map<String, int>> vaccineCounts = {};
+
+          for (var childDoc in childDocs) {
+            var cdata = childDoc.data() as Map<String, dynamic>;
+
+            // Skip children whose dob is missing/invalid — otherwise
+            // parseDob() would default to "today", wrongly making their
+            // At Birth doses always show as Pending in the current month.
+            if (!VaccinationStatusHelper.hasValidDob(cdata['dob'])) continue;
+
+            DateTime dob = VaccinationStatusHelper.parseDob(cdata['dob']);
+
+            String docId = childDoc.id;
+            String regNo = (cdata['regNo'] ?? '').toString();
+            List<Map<String, dynamic>> childRecords = [
+              ...(grouped[docId] ?? []),
+              if (regNo.isNotEmpty) ...(grouped[regNo] ?? []),
+            ];
+
+            final doseList = VaccinationStatusHelper.getDoseStatusForMonth(
+              dob,
+              childRecords,
+              selectedMonthText,
+            );
+
+            for (var dose in doseList) {
+              String vaccine = dose['vaccineName'];
+              String status = dose['status'];
+
+              vaccineCounts.putIfAbsent(vaccine, () => {'vac': 0, 'p': 0, 'm': 0, 'r': 0});
+
+              if (status == 'vaccinated') {
+                totalVaccinated++;
+                vaccineCounts[vaccine]!['vac'] = (vaccineCounts[vaccine]!['vac'] ?? 0) + 1;
+              } else if (status == 'refused') {
+                refusedCount++;
+                vaccineCounts[vaccine]!['r'] = (vaccineCounts[vaccine]!['r'] ?? 0) + 1;
+              } else if (status == 'missed') {
+                missedCount++;
+                vaccineCounts[vaccine]!['m'] = (vaccineCounts[vaccine]!['m'] ?? 0) + 1;
+              } else {
+                pendingCount++;
+                vaccineCounts[vaccine]!['p'] = (vaccineCounts[vaccine]!['p'] ?? 0) + 1;
+              }
+            }
+          }
+
+          return _buildMonthlyReportBody(
+            isRoutine: isRoutine,
+            selectedMonthText: selectedMonthText,
+            totalVaccinated: totalVaccinated,
+            pendingCount: pendingCount,
+            missedCount: missedCount,
+            refusedCount: refusedCount,
+            vaccineCounts: vaccineCounts,
+          );
+        },
+      );
+    }
+
+    // POLIO TAB — unchanged original logic
     final monthDocs = docs.where((doc) {
       var data = doc.data() as Map<String, dynamic>;
       dynamic dateVal = data['administeredDate'];
@@ -358,7 +459,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
     final categoryDocs = monthDocs.where((doc) {
       var data = doc.data() as Map<String, dynamic>;
       String category = (data['category'] ?? 'Routine').toString();
-      return isRoutine ? (category != 'Polio') : (category == 'Polio');
+      return category == 'Polio';
     }).toList();
 
     int totalVaccinated = 0;
@@ -390,6 +491,28 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
       }
     }
 
+    return _buildMonthlyReportBody(
+      isRoutine: isRoutine,
+      selectedMonthText: selectedMonthText,
+      totalVaccinated: totalVaccinated,
+      pendingCount: pendingCount,
+      missedCount: missedCount,
+      refusedCount: refusedCount,
+      vaccineCounts: vaccineCounts,
+    );
+  }
+
+  // Same UI as before — just extracted so both Routine (new calc) and
+  // Polio (old calc) can share the exact same layout/design.
+  Widget _buildMonthlyReportBody({
+    required bool isRoutine,
+    required String selectedMonthText,
+    required int totalVaccinated,
+    required int pendingCount,
+    required int missedCount,
+    required int refusedCount,
+    required Map<String, Map<String, int>> vaccineCounts,
+  }) {
     return Column(
       children: [
         Expanded(
@@ -691,4 +814,4 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
       ],
     );
   }
-}
+} 
