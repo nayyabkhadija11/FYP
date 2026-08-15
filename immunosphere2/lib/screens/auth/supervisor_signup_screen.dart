@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import 'approval_pending_screen.dart';
+// Note: If supervisor_dashboard.dart is in a different folder path, 
+// update the relative import path below accordingly:
+import '../supervisor/supervisor_dashboard.dart'; 
 
 class SupervisorSignUpScreen extends StatefulWidget {
   const SupervisorSignUpScreen({Key? key}) : super(key: key);
@@ -51,6 +54,9 @@ class _SupervisorSignUpScreenState extends State<SupervisorSignUpScreen> {
           duration: Duration(seconds: 4),
         ),
       );
+      
+      // Navigate to ApprovalPendingScreen or change to SupervisorDashboard 
+      // depending on whether admin approval is mandatory before access.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const ApprovalPendingScreen()),

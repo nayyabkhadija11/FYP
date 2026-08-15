@@ -3,32 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 
-// Correct Parent Navigation Import
+// Navigation Imports
 import '../parent/parent_main_navigation_screen.dart'; 
 import '../vaccinator/vaccinator_dashboard_screen.dart'; 
+import '../supervisor/supervisor_dashboard.dart'; // ✅ Asli Supervisor Dashboard import
 
 import 'forgot_password_screen.dart';
 import 'role_selection_screen.dart';
-
-// Temporary placeholder for Supervisor
-class SupervisorDashboardScreen extends StatelessWidget {
-  const SupervisorDashboardScreen({Key? key}) : super(key: key);
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Supervisor Dashboard'),
-        backgroundColor: const Color(0xFF10B981),
-      ),
-      body: const Center(
-        child: Text(
-          'Supervisor Dashboard Screen (Work in Progress)',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -44,6 +25,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   void _handleLogin() async {
     final email = _emailController.text.trim();
@@ -97,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => ParentMainNavigationScreen(
-                    parentCNIC: parentCnic, // Pass CNIC directly to Navigation screen
+                    parentCNIC: parentCnic,
                   ),
                 ),
                 (route) => false,
@@ -111,10 +99,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 (route) => false,
               );
             } else if (role == 'supervisor') {
+              // ✅ Ab yeh seedha aapki supervisor_dashboard.dart file par le jaye ga
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const SupervisorDashboardScreen(),
+                  builder: (context) => const SupervisorDashboard(),
                 ),
                 (route) => false,
               );
