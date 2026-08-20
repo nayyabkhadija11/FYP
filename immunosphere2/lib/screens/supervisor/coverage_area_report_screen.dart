@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class CoverageAreaReportScreen extends StatefulWidget {
@@ -11,43 +12,17 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
   String _selectedHealthCenter = 'All Health Centers';
   String _selectedMonth = 'May 2024';
 
-  final List<Map<String, dynamic>> _reportData = [
-    {
-      'center': 'BHU Jand',
-      'eligible': 120,
-      'vaccinated': 114,
-      'missed': 6,
-      'coverage': '95%',
-    },
-    {
-      'center': 'THQ Hospital Jand',
-      'eligible': 150,
-      'vaccinated': 132,
-      'missed': 18,
-      'coverage': '88%',
-    },
-    {
-      'center': 'BHU Pindigheb',
-      'eligible': 100,
-      'vaccinated': 91,
-      'missed': 9,
-      'coverage': '91%',
-    },
-    {
-      'center': 'RHC Hazro',
-      'eligible': 80,
-      'vaccinated': 66,
-      'missed': 14,
-      'coverage': '82%',
-    },
-    {
-      'center': 'BHU Fateh Jang',
-      'eligible': 70,
-      'vaccinated': 64,
-      'missed': 6,
-      'coverage': '91%',
-    },
+  // List for filter dropdown items
+  final List<String> _healthCentersList = [
+    'All Health Centers',
+    'BHU Jand',
+    'THQ Hospital Jand',
+    'BHU Pindigheb',
+    'RHC Hazro',
+    'BHU Fateh Jang',
   ];
+
+  final List<String> _monthsList = ['May 2024', 'June 2024', 'July 2024'];
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +71,7 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
                         value: _selectedHealthCenter,
                         isExpanded: true,
                         icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF231B92)),
-                        items: ['All Health Centers', 'BHU Jand', 'THQ Hospital Jand', 'BHU Pindigheb', 'RHC Hazro', 'BHU Fateh Jang'].map((center) {
+                        items: _healthCentersList.map((center) {
                           return DropdownMenuItem(
                             value: center,
                             child: Text(center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF231B92))),
@@ -120,7 +95,7 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
                         value: _selectedMonth,
                         isExpanded: true,
                         icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF231B92)),
-                        items: ['May 2024', 'June 2024', 'July 2024'].map((month) {
+                        items: _monthsList.map((month) {
                           return DropdownMenuItem(
                             value: month,
                             child: Text(month, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF231B92))),
@@ -135,7 +110,7 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Report Table Container
+            // Report Table Container using StreamBuilder for Firebase Real-time Data
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -204,58 +179,103 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
                     ),
                   ),
 
-                  // Table Rows
-                  ..._reportData.map((data) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              data['center'],
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF231B92)),
-                            ),
+                  // Firebase StreamBuilder
+                  StreamBuilder<QuerySnapshot>(
+                    stream: _fetchReportDataFromFirebase(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Center(child: CircularProgressIndicator(color: Color(0xFF231B92))),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Center(
+                            child: Text('Error loading data: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
                           ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              data['eligible'].toString(),
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
-                              textAlign: TextAlign.center,
-                            ),
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(30.0),
+                          child: Center(
+                            child: Text('No records found for selected filters.', style: TextStyle(color: Colors.grey, fontSize: 12)),
                           ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              data['vaccinated'].toString(),
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
-                              textAlign: TextAlign.center,
+                        );
+                      }
+
+                      final docs = snapshot.data!.docs;
+
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        itemBuilder: (context, index) {
+                          final data = docs[index].data() as Map<String, dynamic>;
+
+                          final centerName = data['center'] ?? 'Unknown';
+                          final eligible = data['eligible'] ?? 0;
+                          final vaccinated = data['vaccinated'] ?? 0;
+                          final missed = data['missed'] ?? 0;
+                          final coverage = data['coverage'] ?? '0%';
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
                             ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              data['missed'].toString(),
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
-                              textAlign: TextAlign.center,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    centerName,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF231B92)),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    eligible.toString(),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    vaccinated.toString(),
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    missed.toString(),
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    coverage,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
+                                    textAlign: TextAlign.end,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              data['coverage'],
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
-                              textAlign: TextAlign.end,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -287,5 +307,20 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
         ),
       ),
     );
+  }
+
+  // Query builder based on selected filters
+  Stream<QuerySnapshot> _fetchReportDataFromFirebase() {
+    Query query = FirebaseFirestore.instance.collection('coverage_reports');
+
+    // Filter by Month if needed (assuming your document has a 'month' field)
+    query = query.where('month', isEqualTo: _selectedMonth);
+
+    // Filter by Health Center if a specific one is selected
+    if (_selectedHealthCenter != 'All Health Centers') {
+      query = query.where('center', isEqualTo: _selectedHealthCenter);
+    }
+
+    return query.snapshots();
   }
 }
