@@ -16,13 +16,11 @@ class _PolioCampaignReportScreenState extends State<PolioCampaignReportScreen> {
   final TextEditingController _campaignController = TextEditingController(text: 'National Polio Campaign (Aug 2026)');
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   
-  Map<String, dynamic>? _savedReportData;
   bool _isLoadingSavedReport = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchReportForCampaign(_campaignController.text.trim());
   }
 
   @override
@@ -33,31 +31,6 @@ class _PolioCampaignReportScreenState extends State<PolioCampaignReportScreen> {
 
   String _getDocId(String campaignName) {
     return campaignName.replaceAll(RegExp(r'[^\w\s]+'), '_').trim().toLowerCase();
-  }
-
-  Future<void> _fetchReportForCampaign(String campaignName) async {
-    if (campaignName.isEmpty) return;
-    setState(() => _isLoadingSavedReport = true);
-
-    try {
-      String docId = _getDocId(campaignName);
-      DocumentSnapshot<Map<String, dynamic>> doc = await _db.collection('polio_campaign_reports').doc(docId).get();
-      
-      if (doc.exists && doc.data() != null) {
-        setState(() {
-          _savedReportData = doc.data();
-          _isLoadingSavedReport = false;
-        });
-      } else {
-        setState(() {
-          _savedReportData = null;
-          _isLoadingSavedReport = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching report: $e');
-      setState(() => _isLoadingSavedReport = false);
-    }
   }
 
   Future<void> _savePolioReportToFirestore(int totalChildren, int vaccinated, int missed, int coverage) async {
@@ -184,7 +157,6 @@ class _PolioCampaignReportScreenState extends State<PolioCampaignReportScreen> {
               controller: _campaignController,
               onChanged: (val) {
                 setState(() {});
-                _fetchReportForCampaign(val.trim());
               },
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF231B92)),
               decoration: InputDecoration(
@@ -225,59 +197,57 @@ class _PolioCampaignReportScreenState extends State<PolioCampaignReportScreen> {
                       return const Center(child: Text('Loading data from Firebase...'));
                     }
 
-                    int totalChildren = 0;
+                    int totalChildren = childSnapshot.data!.docs.length;
                     int vaccinatedCount = 0;
                     int missedCount = 0;
                     int coveragePercentage = 0;
 
-                    if (_savedReportData != null) {
-                      totalChildren = _savedReportData!['totalChildren'] ?? 0;
-                      vaccinatedCount = _savedReportData!['vaccinated'] ?? 0;
-                      missedCount = _savedReportData!['missed'] ?? 0;
-                      String covStr = (_savedReportData!['coverage'] ?? '0%').replaceAll('%', '');
-                      coveragePercentage = int.tryParse(covStr) ?? 0;
-                    } else {
-                      Set<String> validChildIds = {};
-                      for (var doc in childSnapshot.data!.docs) {
-                        final data = doc.data();
-                        validChildIds.add(doc.id.trim().toLowerCase());
-                        if (data['childId'] != null) {
-                          validChildIds.add(data['childId'].toString().trim().toLowerCase());
-                        }
-                        if (data['regNo'] != null) {
-                          validChildIds.add(data['regNo'].toString().trim().toLowerCase());
-                        }
+                    // Collect valid children identifiers
+                    Set<String> validChildIds = {};
+                    for (var doc in childSnapshot.data!.docs) {
+                      final data = doc.data();
+                      validChildIds.add(doc.id.trim().toLowerCase());
+                      if (data['childId'] != null) {
+                        validChildIds.add(data['childId'].toString().trim().toLowerCase());
                       }
-
-                      totalChildren = childSnapshot.data!.docs.length;
-                      Set<String> vaccinatedChildIds = {};
-
-                      for (var doc in vacSnapshot.data!.docs) {
-                        final data = doc.data();
-                        final String childId = (data['childId'] ?? '').toString().trim().toLowerCase();
-                        final String vaccineName = (data['vaccineName'] ?? '').toString().toLowerCase().trim();
-                        final String status = (data['status'] ?? '').toString().toLowerCase().trim();
-
-                        bool isPolioBooster = vaccineName.contains('polio') && vaccineName.contains('booster');
-                        bool isVaccinated = status == 'vaccinated';
-
-                        if (isPolioBooster && childId.isNotEmpty && validChildIds.contains(childId)) {
-                          if (isVaccinated) {
-                            vaccinatedChildIds.add(childId);
-                          }
-                        }
+                      if (data['regNo'] != null) {
+                        validChildIds.add(data['regNo'].toString().trim().toLowerCase());
                       }
-
-                      vaccinatedCount = vaccinatedChildIds.length;
-                      missedCount = (totalChildren - vaccinatedCount) >= 0 ? (totalChildren - vaccinatedCount) : 0;
-
-                      coveragePercentage = totalChildren > 0 ? ((vaccinatedCount / totalChildren) * 100).round() : 0;
-                      if (coveragePercentage > 100) coveragePercentage = 100;
-
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _savePolioReportToFirestore(totalChildren, vaccinatedCount, missedCount, coveragePercentage);
-                      });
                     }
+
+                    Set<String> vaccinatedChildIds = {};
+
+                    // Iterate through vaccination records with exact name checks
+                    for (var doc in vacSnapshot.data!.docs) {
+                      final data = doc.data();
+                      final String childId = (data['childId'] ?? '').toString().trim().toLowerCase();
+                      final String vaccineName = (data['vaccineName'] ?? '').toString().toLowerCase().trim();
+                      final String status = (data['status'] ?? '').toString().toLowerCase().trim();
+
+                      // Strict Matching for "opv drops" or "ipv injection"
+                      bool isOpvDrops = vaccineName == 'opv drops' || vaccineName.contains('opv drops');
+                      bool isIpvInjection = vaccineName == 'ipv injection' || vaccineName.contains('ipv injection');
+                      bool isOpvOrIpv = isOpvDrops || isIpvInjection;
+                      
+                      // Check status
+                      bool isVaccinated = status == 'vaccinated' || status == 'completed';
+
+                      if (isOpvOrIpv && childId.isNotEmpty && validChildIds.contains(childId)) {
+                        if (isVaccinated) {
+                          vaccinatedChildIds.add(childId);
+                        }
+                      }
+                    }
+
+                    vaccinatedCount = vaccinatedChildIds.length;
+                    missedCount = (totalChildren - vaccinatedCount) >= 0 ? (totalChildren - vaccinatedCount) : 0;
+
+                    coveragePercentage = totalChildren > 0 ? ((vaccinatedCount / totalChildren) * 100).round() : 0;
+                    if (coveragePercentage > 100) coveragePercentage = 100;
+
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _savePolioReportToFirestore(totalChildren, vaccinatedCount, missedCount, coveragePercentage);
+                    });
 
                     return Column(
                       children: [

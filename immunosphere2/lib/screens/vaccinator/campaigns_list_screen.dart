@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'campaign_child_list_screen.dart';
 
 class CampaignsListScreen extends StatelessWidget {
-  final String currentTeamId;
+  final String currentTeamNumber; // Misal ke tor par "1"
 
   const CampaignsListScreen({
     Key? key,
-    this.currentTeamId = 'Team 07', // Default value added to fix parameter error
+    this.currentTeamNumber = '1', 
   }) : super(key: key);
 
   @override
@@ -15,27 +16,58 @@ class CampaignsListScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('Campaigns', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: Text('Campaigns (Team $currentTeamNumber)', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('campaigns').snapshots(),
+      // Filtering campaigns based on teamNumber field from Firestore
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('campaigns')
+            .where('teamNumber', isEqualTo: currentTeamNumber)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFF00BFA5)));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No Campaigns Available', style: TextStyle(color: Colors.grey)));
+            return Center(
+              child: Text(
+                'No Campaigns Assigned for Team $currentTeamNumber', 
+                style: const TextStyle(color: Colors.grey),
+              ),
+            );
           }
 
           final allCampaigns = snapshot.data!.docs;
+          final DateTime now = DateTime.now();
 
-          final activeCampaigns = allCampaigns.where((doc) => doc['status'] == 'Active').toList();
-          final upcomingCampaigns = allCampaigns.where((doc) => doc['status'] == 'Upcoming').toList();
-          final completedCampaigns = allCampaigns.where((doc) => doc['status'] == 'Completed').toList();
+          List<DocumentSnapshot<Map<String, dynamic>>> activeCampaigns = [];
+          List<DocumentSnapshot<Map<String, dynamic>>> upcomingCampaigns = [];
+          List<DocumentSnapshot<Map<String, dynamic>>> completedCampaigns = [];
+
+          for (var doc in allCampaigns) {
+            final data = doc.data();
+            final String explicitStatus = (data['status'] ?? '').toString().toLowerCase().trim();
+
+            DateTime? endDate;
+            if (data['endDate'] is Timestamp) {
+              endDate = (data['endDate'] as Timestamp).toDate();
+            }
+
+            bool isCompleted = explicitStatus == 'completed' || (endDate != null && now.isAfter(endDate));
+            bool isUpcoming = explicitStatus == 'upcoming';
+
+            if (isCompleted) {
+              completedCampaigns.add(doc);
+            } else if (isUpcoming) {
+              upcomingCampaigns.add(doc);
+            } else {
+              activeCampaigns.add(doc);
+            }
+          }
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -64,30 +96,54 @@ class CampaignsListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCampaignCard(BuildContext context, DocumentSnapshot doc, {bool isActive = false, bool isUpcoming = false, bool isCompleted = false}) {
-    final data = doc.data() as Map<String, dynamic>;
+  Widget _buildCampaignCard(BuildContext context, DocumentSnapshot<Map<String, dynamic>> doc, {bool isActive = false, bool isUpcoming = false, bool isCompleted = false}) {
+    final data = doc.data() ?? {};
     String campaignId = doc.id;
-    String title = data['title'] ?? 'Polio Campaign';
-    String dates = data['dates'] ?? 'N/A';
-    String area = data['area'] ?? 'N/A';
-    String team = data['team'] ?? currentTeamId;
+    
+    // Correct fields mapping from your Firestore structure
+    String title = data['name'] ?? 'Polio Campaign';
+    String targetArea = data['targetArea'] ?? 'N/A';
+    String targetVillage = data['targetVillage'] ?? '';
+    String area = targetVillage.isNotEmpty ? '$targetArea, $targetVillage' : targetArea;
+    String team = data['teamNumber'] ?? currentTeamNumber;
+    
+    // Total children from campaign document field, fallback to 0 if not present
+    int docTotalChildren = data['totalChildren'] is int ? data['totalChildren'] : int.tryParse(data['totalChildren']?.toString() ?? '0') ?? 0;
 
+    String formattedDates = 'N/A';
+    if (data['startDate'] is Timestamp && data['endDate'] is Timestamp) {
+      DateTime start = (data['startDate'] as Timestamp).toDate();
+      DateTime end = (data['endDate'] as Timestamp).toDate();
+      formattedDates = '${DateFormat('dd MMM yyyy').format(start)} – ${DateFormat('dd MMM yyyy').format(end)}';
+    }
+
+    // Fetching vaccinated children dynamically from campaign_assignments collection
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('campaign_assignments')
           .where('campaignId', isEqualTo: campaignId)
           .snapshots(),
       builder: (context, assignmentSnapshot) {
-        int totalChildren = 0;
+        int totalChildren = docTotalChildren;
         int vaccinatedChildren = 0;
         double progress = 0.0;
 
         if (assignmentSnapshot.hasData) {
           final assignments = assignmentSnapshot.data!.docs;
-          totalChildren = assignments.length;
-          vaccinatedChildren = assignments.where((a) => a['status'] == 'Vaccinated').length;
+          
+          // Agar assignments se total children count lena zyada behtar lagay toh yeh use karein:
+          if (assignments.isNotEmpty) {
+            totalChildren = assignments.length;
+          }
+          
+          vaccinatedChildren = assignments.where((a) {
+            final aData = a.data() as Map<String, dynamic>;
+            final status = (aData['status'] ?? '').toString().toLowerCase().trim();
+            return status == 'vaccinated' || status == 'completed' || status == 'done' || status == 'yes';
+          }).length;
+
           if (totalChildren > 0) {
-            progress = vaccinatedChildren / totalChildren;
+            progress = (vaccinatedChildren / totalChildren).clamp(0.0, 1.0);
           }
         }
 
@@ -99,7 +155,7 @@ class CampaignsListScreen extends StatelessWidget {
                 builder: (context) => CampaignChildListScreen(
                   campaignId: campaignId,
                   campaignTitle: title,
-                  dates: dates,
+                  dates: formattedDates,
                   area: area,
                   team: team,
                 ),
@@ -128,7 +184,14 @@ class CampaignsListScreen extends StatelessWidget {
                           color: isActive ? const Color(0xFF00BFA5) : isUpcoming ? Colors.blue : Colors.green,
                         ),
                         const SizedBox(width: 8),
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.45,
+                          child: Text(
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                     Container(
@@ -149,13 +212,13 @@ class CampaignsListScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(dates, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                Text(formattedDates, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                 const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Area: $area', style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
-                    Text('Team: $team', style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+                    Text('Team: Team $team', style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
                   ],
                 ),
                 if (isActive || isCompleted) ...[

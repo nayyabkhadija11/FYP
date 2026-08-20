@@ -126,25 +126,32 @@ class _CampaignsScreenState extends State<CampaignsScreen>
         }
 
         final allDocs = snapshot.data?.docs ?? [];
+        final DateTime now = DateTime.now();
 
-        final filteredDocs = allDocs.where((doc) {
-          final data = doc.data();
-          
-          int totalRegistered = 0;
-          int totalVaccinated = 0;
-          
-          // Quick calculation to check if 100% completed dynamically
-          // (You can also compare progress if stored values are passed, but calculating here ensures accuracy)
-          return data['status'] != null;
-        }).toList();
-
-        // We filter based on whether the progress is 100% or explicitly marked as completed/active in Firestore
         final actualFilteredDocs = allDocs.where((doc) {
           final data = doc.data();
-          final String explicitStatus = (data['status'] ?? 'active').toString().toLowerCase();
           
-          // If Firestore status matches directly
-          return explicitStatus == statusType;
+          DateTime? endDate;
+          if (data['endDate'] is Timestamp) {
+            endDate = (data['endDate'] as Timestamp).toDate();
+          }
+
+          final String explicitStatus = (data['status'] ?? '').toString().toLowerCase().trim();
+
+          bool isReallyCompleted = false;
+          if (explicitStatus == 'completed') {
+            isReallyCompleted = true;
+          } else if (explicitStatus == 'active') {
+            isReallyCompleted = false;
+          } else if (endDate != null) {
+            isReallyCompleted = now.isAfter(endDate);
+          }
+
+          if (statusType == 'completed') {
+            return isReallyCompleted;
+          } else {
+            return !isReallyCompleted;
+          }
         }).toList();
 
         if (actualFilteredDocs.isEmpty) {
@@ -169,7 +176,8 @@ class _CampaignsScreenState extends State<CampaignsScreen>
     );
   }
 
-  Widget _buildRealCampaignCard(String campaignId, Map<String, dynamic> data) {
+  Widget _buildRealCampaignCard(
+      String campaignId, Map<String, dynamic> data) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _db.collection('children').snapshots(),
       builder: (context, childSnapshot) {
@@ -179,16 +187,19 @@ class _CampaignsScreenState extends State<CampaignsScreen>
             int totalRegistered = 0;
             int totalVaccinated = 0;
 
-            // 1. Calculate total registered children for this campaign
+            Set<String> campaignChildIds = {};
+
             if (childSnapshot.hasData) {
               final childDocs = childSnapshot.data!.docs;
-              
+
               for (var doc in childDocs) {
                 final cData = doc.data();
-                final String cCampaignId = (cData['campaign_id'] ?? '').toString().trim();
-                
+                final String cCampaignId =
+                    (cData['campaign_id'] ?? cData['campaignId'] ?? '').toString().trim();
+
                 bool belongsToCampaign = false;
-                if (cCampaignId.isNotEmpty && cCampaignId == campaignId.trim()) {
+                if (cCampaignId.isNotEmpty &&
+                    cCampaignId == campaignId.trim()) {
                   belongsToCampaign = true;
                 } else if (cCampaignId.isEmpty) {
                   belongsToCampaign = true;
@@ -196,70 +207,91 @@ class _CampaignsScreenState extends State<CampaignsScreen>
 
                 if (belongsToCampaign) {
                   totalRegistered++;
+                  campaignChildIds.add(doc.id);
                 }
               }
             }
 
-            // 2. Count all valid Polio/Booster vaccinations directly from 'vaccinations' collection
             if (vacSnapshot.hasData) {
               final vacDocs = vacSnapshot.data!.docs;
 
               for (var vDoc in vacDocs) {
                 final vData = vDoc.data();
-                final String vaccineName = (vData['vaccineName'] ?? '').toString().toLowerCase();
-                final String vStatus = (vData['status'] ?? '').toString().toLowerCase();
+                
+                final String vChildId = (vData['child_id'] ?? vData['childId'] ?? '').toString().trim();
+                if (vChildId.isNotEmpty && campaignChildIds.isNotEmpty && !campaignChildIds.contains(vChildId)) {
+                  continue; 
+                }
 
-                bool isStatusDone = vStatus == 'vaccinated' || vStatus == 'completed' || vStatus == 'done' || vStatus == 'yes';
+                final String vaccineName =
+                    (vData['vaccineName'] ?? vData['name'] ?? '').toString().toLowerCase().trim();
+                final String vStatus =
+                    (vData['status'] ?? '').toString().toLowerCase().trim();
 
-                if ((vaccineName.contains('polio') || vaccineName.contains('booster')) && isStatusDone) {
+                bool isStatusDone = vStatus == 'vaccinated' ||
+                    vStatus == 'completed' ||
+                    vStatus == 'done' ||
+                    vStatus == 'yes';
+
+                bool isExactTargetVaccine = vaccineName == 'opv drops' || vaccineName == 'ipv injection';
+
+                if (isExactTargetVaccine && isStatusDone) {
                   totalVaccinated++;
                 }
               }
             }
 
-            int targetGoal = data['target_count'] ?? totalRegistered;
+            int targetGoal = data['target_count'] ?? data['targetCount'] ?? totalRegistered;
             if (targetGoal == 0 && totalRegistered > 0) {
               targetGoal = totalRegistered;
             }
-
-            double progress = targetGoal > 0 ? (totalVaccinated / targetGoal).clamp(0.0, 1.0) : 0.0;
-
-            // Automatically update Firestore status to 'completed' if progress hits 100% (1.0) and it's still marked active
-            if (progress >= 1.0 && (data['status'] ?? 'active').toString().toLowerCase() == 'active') {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _db.collection('campaigns').doc(campaignId).update({'status': 'completed'});
-              });
+            if (targetGoal == 0) {
+              targetGoal = 100;
             }
 
-            return _buildCampaignCard(campaignId, data, totalVaccinated, targetGoal, progress: progress);
+            double progress = targetGoal > 0
+                ? (totalVaccinated / targetGoal).clamp(0.0, 1.0)
+                : 0.0;
+
+            return _buildCampaignCard(
+                campaignId, data, totalVaccinated, targetGoal,
+                progress: progress);
           },
         );
       },
     );
   }
 
-  Widget _buildCampaignCard(String campaignId, Map<String, dynamic> data, int vaccinatedCount, int targetCount, {double? progress}) {
+  Widget _buildCampaignCard(String campaignId, Map<String, dynamic> data,
+      int vaccinatedCount, int targetCount,
+      {double? progress}) {
     final String name = data['name'] ?? 'Campaign Name';
     final String type = data['type'] ?? 'Polio';
     final int healthCenters = data['healthCenters'] ?? 3;
-    final String status = data['status'] ?? 'active';
-    final double calculatedProgress = progress ?? (data['progress'] ?? 0.0).toDouble();
+    final double calculatedProgress =
+        progress ?? (data['progress'] ?? 0.0).toDouble();
 
     String startDateStr = '10 Aug 2026';
+    DateTime? startDate;
     if (data['startDate'] is Timestamp) {
-      DateTime dt = (data['startDate'] as Timestamp).toDate();
-      startDateStr = DateFormat('dd MMM yyyy').format(dt);
+      startDate = (data['startDate'] as Timestamp).toDate();
+      startDateStr = DateFormat('dd MMM yyyy').format(startDate);
     }
 
     String endDateStr = '15 Aug 2026';
+    DateTime? endDate;
     if (data['endDate'] is Timestamp) {
-      DateTime dt = (data['endDate'] as Timestamp).toDate();
-      endDateStr = DateFormat('dd MMM yyyy').format(dt);
+      endDate = (data['endDate'] as Timestamp).toDate();
+      endDateStr = DateFormat('dd MMM yyyy').format(endDate);
     }
 
-    final bool isActive = status.toLowerCase() == 'active';
+    final DateTime now = DateTime.now();
+    final String explicitStatus = (data['status'] ?? '').toString().toLowerCase().trim();
+    
+    // Check if it is completed either via explicit status or past end date
+    final bool isCompleted = explicitStatus == 'completed' || (endDate != null && now.isAfter(endDate));
 
-    void _deleteCampaign() async {
+    void deleteCampaign() async {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -324,7 +356,8 @@ class _CampaignsScreenState extends State<CampaignsScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F1FD),
                       borderRadius: BorderRadius.circular(8),
@@ -340,10 +373,11 @@ class _CampaignsScreenState extends State<CampaignsScreen>
                   ),
                   const SizedBox(width: 4),
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                    icon: const Icon(Icons.more_vert,
+                        size: 18, color: Colors.grey),
                     onSelected: (value) {
                       if (value == 'delete') {
-                        _deleteCampaign();
+                        deleteCampaign();
                       }
                     },
                     itemBuilder: (context) => [
@@ -351,9 +385,12 @@ class _CampaignsScreenState extends State<CampaignsScreen>
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                            Icon(Icons.delete_outline,
+                                size: 16, color: Colors.red),
                             SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red, fontSize: 13)),
+                            Text('Delete',
+                                style:
+                                    TextStyle(color: Colors.red, fontSize: 13)),
                           ],
                         ),
                       ),
@@ -366,7 +403,8 @@ class _CampaignsScreenState extends State<CampaignsScreen>
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey),
+              const Icon(Icons.calendar_today_outlined,
+                  size: 14, color: Colors.grey),
               const SizedBox(width: 6),
               Text(
                 '$startDateStr – $endDateStr',
@@ -377,7 +415,8 @@ class _CampaignsScreenState extends State<CampaignsScreen>
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+              const Icon(Icons.location_on_outlined,
+                  size: 14, color: Colors.grey),
               const SizedBox(width: 6),
               Text(
                 'Health Centers: $healthCenters',
@@ -385,7 +424,7 @@ class _CampaignsScreenState extends State<CampaignsScreen>
               ),
             ],
           ),
-          if (isActive) ...[
+          if (!isCompleted) ...[
             const SizedBox(height: 14),
             Row(
               children: [
@@ -395,7 +434,8 @@ class _CampaignsScreenState extends State<CampaignsScreen>
                     child: LinearProgressIndicator(
                       value: calculatedProgress,
                       backgroundColor: const Color(0xFFEDEEF4),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF231B92)),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF231B92)),
                       minHeight: 6,
                     ),
                   ),
@@ -416,7 +456,8 @@ class _CampaignsScreenState extends State<CampaignsScreen>
             Align(
               alignment: Alignment.centerRight,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(6),

@@ -16,35 +16,34 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedChildDocId;
   
-  // FIX: Unset default values so fields start completely empty
   String? _selectedVaccine;
   String? _selectedDose;
   DateTime? _selectedDate; 
   
-  String _status = "Vaccinated"; // Default status choice
+  String _status = "Vaccinated";
   bool _isLoading = false;
 
   final TextEditingController _remarksController = TextEditingController();
 
   final List<String> _vaccineOptions = [
-  'BCG',
-  'OPV-0',
-  'OPV-1',
-  'OPV-2',
-  'OPV-3',
-  'Pentavalent-1',
-  'Pentavalent-2',
-  'Pentavalent-3',
-  'PCV-1',
-  'PCV-2',
-  'PCV-3',
-  'Rotavirus-1',
-  'Rotavirus-2',
-  'IPV-1',
-  'IPV-2',
-  'Measles-Rubella (MR-1)',
-  'Measles-Rubella (MR-2)',
-  'TCV (Typhoid)',
+    'BCG',
+    'OPV-0',
+    'OPV-1',
+    'OPV-2',
+    'OPV-3',
+    'Pentavalent-1',
+    'Pentavalent-2',
+    'Pentavalent-3',
+    'PCV-1',
+    'PCV-2',
+    'PCV-3',
+    'Rotavirus-1',
+    'Rotavirus-2',
+    'IPV-1',
+    'IPV-2',
+    'Measles-Rubella (MR-1)',
+    'Measles-Rubella (MR-2)',
+    'TCV (Typhoid)',
   ];
 
   final List<String> _doseOptions = ["Dose 1", "Dose 2", "Dose 3", "Booster"];
@@ -59,7 +58,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
     }
   }
 
-  // Helper Function for Date Display
   String _formatDateSafely(dynamic dateVal) {
     if (dateVal == null) return 'Select Date';
     if (dateVal is Timestamp) {
@@ -72,49 +70,42 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
     return dateVal.toString();
   }
 
-  // Calculate Next Vaccine Schedule Helper
   String _calculateNextDueVaccine(String currentVaccine) {
     switch (currentVaccine) {
-      // At Birth
-    case 'BCG':
-    case 'OPV-0':
-      return '6 Weeks: Pentavalent-1, PCV-1, OPV-1, Rotavirus-1';
+      case 'BCG':
+      case 'OPV-0':
+        return '6 Weeks: Pentavalent-1, PCV-1, OPV-1, Rotavirus-1';
 
-    // 6 Weeks (First Routine Stage)
-    case 'Pentavalent-1':
-    case 'PCV-1':
-    case 'OPV-1':
-    case 'Rotavirus-1':
-      return '10 Weeks: Pentavalent-2, PCV-2, OPV-2, Rotavirus-2';
+      case 'Pentavalent-1':
+      case 'PCV-1':
+      case 'OPV-1':
+      case 'Rotavirus-1':
+        return '10 Weeks: Pentavalent-2, PCV-2, OPV-2, Rotavirus-2';
 
-    // 10 Weeks (Second Routine Stage)
-    case 'Pentavalent-2':
-    case 'PCV-2':
-    case 'OPV-2':
-    case 'Rotavirus-2':
-      return '14 Weeks: Pentavalent-3, PCV-3, OPV-3, IPV-1';
+      case 'Pentavalent-2':
+      case 'PCV-2':
+      case 'OPV-2':
+      case 'Rotavirus-2':
+        return '14 Weeks: Pentavalent-3, PCV-3, OPV-3, IPV-1';
 
-    // 14 Weeks (Third Routine Stage)
-    case 'Pentavalent-3':
-    case 'PCV-3':
-    case 'OPV-3':
-    case 'IPV-1':
-      return '9 Months: Measles-Rubella (MR-1), TCV';
+      case 'Pentavalent-3':
+      case 'PCV-3':
+      case 'OPV-3':
+      case 'IPV-1':
+        return '9 Months: Measles-Rubella (MR-1), TCV';
 
-    // 9 Months
-    case 'Measles-Rubella (MR-1)':
-    case 'MR-1':
-    case 'TCV':
-      return '15 Months: Measles-Rubella (MR-2), IPV-2';
+      case 'Measles-Rubella (MR-1)':
+      case 'MR-1':
+      case 'TCV':
+        return '15 Months: Measles-Rubella (MR-2), IPV-2';
 
-    // 15 Months (Final Stage)
-    case 'Measles-Rubella (MR-2)':
-    case 'MR-2':
-    case 'IPV-2':
-      return 'All Routine Vaccines Completed';
+      case 'Measles-Rubella (MR-2)':
+      case 'MR-2':
+      case 'IPV-2':
+        return 'All Routine Vaccines Completed';
 
-    default:
-      return 'Routine Checkup';
+      default:
+        return 'Routine Checkup';
     }
   }
 
@@ -141,7 +132,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
   }
 
   Future<void> _saveVaccinationRecord() async {
-    // Validation for empty fields
     if (_selectedChildDocId == null || _selectedChildDocId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a child'), backgroundColor: Colors.red),
@@ -165,7 +155,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
       String mappedStatus = 'vaccinated';
       if (_status == 'Refused') mappedStatus = 'refused';
 
-      // 1. Add Entry into Vaccinations Collection
       DocumentReference newVaccinationRef = FirebaseFirestore.instance.collection('vaccinations').doc();
       batch.set(newVaccinationRef, {
         'vaccinationId': newVaccinationRef.id,
@@ -180,7 +169,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. Add / Update Task Collection
       DocumentReference newTaskRef = FirebaseFirestore.instance.collection('vaccination_tasks').doc();
       batch.set(newTaskRef, {
         'taskId': newTaskRef.id,
@@ -192,7 +180,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
         'administeredBy': user?.uid ?? 'health_worker',
       });
 
-      // 3. Update Child Document Record
       DocumentReference childRef = FirebaseFirestore.instance.collection('children').doc(_selectedChildDocId);
       
       Map<String, dynamic> childUpdate = {
@@ -207,7 +194,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
 
       batch.update(childRef, childUpdate);
 
-      // Commit all batch operations
       await batch.commit();
 
       if (mounted) {
@@ -257,14 +243,27 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // CHILD SELECTOR
+              // CHILD SELECTOR (Filtered using 'registeredBy')
               const Text('Child *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
               const SizedBox(height: 6),
               StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('children').snapshots(),
+                stream: FirebaseFirestore.instance
+                    .collection('children')
+                    .where('registeredBy', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                    .snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: LinearProgressIndicator(color: Color(0xFF5C33CF)));
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        'No children registered by you yet.',
+                        style: TextStyle(fontSize: 12, color: Colors.redAccent),
+                      ),
+                    );
                   }
 
                   var childDocs = snapshot.data!.docs;
@@ -348,11 +347,6 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
               const SizedBox(height: 16),
 
               // STATUS SELECTION
-              // NOTE: "Missed" option removed — missed status is now
-              // calculated automatically (due date + 14-day grace period
-              // passed with no record), so vaccinator never manually marks
-              // it here. Only Vaccinated / Refused remain, since those are
-              // the only two outcomes a vaccinator actually witnesses.
               const Text('Status *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
               const SizedBox(height: 8),
               Row(

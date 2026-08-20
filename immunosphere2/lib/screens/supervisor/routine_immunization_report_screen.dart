@@ -14,22 +14,32 @@ class RoutineImmunizationReportScreen extends StatefulWidget {
 class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationReportScreen> {
   final TextEditingController _monthYearController = TextEditingController(text: 'May 2024');
   
-  // Updated list of health centers
   String _selectedHealthCenter = 'THQ Hospital Jand';
   final List<String> _healthCenters = [
     'THQ Hospital Jand',
     'THQ Hospital Attock',
   ];
 
+  // Expanded official vaccine list
   final List<String> _vaccineNames = [
     'BCG',
-    'OPV 0',
-    'OPV 1 / Pentavalent 1',
-    'OPV 2 / Pentavalent 2',
-    'OPV 3 / Pentavalent 3',
-    'Polio Booster Dose',
-    'Measles 1',
-    'Measles 2',
+    'OPV-0',
+    'OPV-1',
+    'OPV-2',
+    'OPV-3',
+    'Pentavalent-1',
+    'Pentavalent-2',
+    'Pentavalent-3',
+    'PCV-1',
+    'PCV-2',
+    'PCV-3',
+    'Rotavirus-1',
+    'Rotavirus-2',
+    'IPV-1',
+    'IPV-2',
+    'Measles-Rubella (MR-1)',
+    'Measles-Rubella (MR-2)',
+    'TCV (Typhoid)',
   ];
 
   @override
@@ -88,58 +98,55 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
     final pdf = pw.Document();
 
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'Routine Immunization Report',
-                style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Text(
-                'Health Center: $_selectedHealthCenter | Period: $monthYear',
-                style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
-              ),
-              pw.Divider(thickness: 1.5, color: PdfColors.indigo900),
-              pw.SizedBox(height: 16),
-              pw.Text(
-                'Summary Statistics',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildPdfStatBox('Total Children', '$totalChildren', PdfColors.indigo900),
-                  _buildPdfStatBox('Fully Vaccinated', '$fullyVaccinated', PdfColors.green800),
-                  _buildPdfStatBox('Pending', '$pending', PdfColors.red800),
-                ],
-              ),
-              pw.SizedBox(height: 24),
-              pw.Text(
-                'Vaccine Wise Summary Breakdown',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
-              ),
-              pw.SizedBox(height: 10),
-              pw.Table.fromTextArray(
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo100),
-                headerHeight: 25,
-                cellHeight: 25,
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.centerRight,
-                },
-                headers: <String>['Vaccine Name', 'Vaccinated Count'],
-                data: _vaccineNames.map((name) {
-                  int count = vaccineData[name] ?? 0;
-                  return [name, '$count'];
-                }).toList(),
-              ),
-            ],
-          );
+          return [
+            pw.Text(
+              'Routine Immunization Report',
+              style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text(
+              'Health Center: $_selectedHealthCenter | Period: $monthYear',
+              style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
+            ),
+            pw.Divider(thickness: 1.5, color: PdfColors.indigo900),
+            pw.SizedBox(height: 16),
+            pw.Text(
+              'Summary Statistics',
+              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                _buildPdfStatBox('Total Children', '$totalChildren', PdfColors.indigo900),
+                _buildPdfStatBox('Fully Vaccinated', '$fullyVaccinated', PdfColors.green800),
+                _buildPdfStatBox('Pending', '$pending', PdfColors.red800),
+              ],
+            ),
+            pw.SizedBox(height: 24),
+            pw.Text(
+              'Vaccine Wise Summary Breakdown',
+              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
+            ),
+            pw.SizedBox(height: 10),
+            pw.Table.fromTextArray(
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo100),
+              headerHeight: 25,
+              cellHeight: 25,
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.centerRight,
+              },
+              headers: <String>['Vaccine Name', 'Vaccinated Count'],
+              data: _vaccineNames.map((name) {
+                int count = vaccineData[name] ?? 0;
+                return [name, '$count'];
+              }).toList(),
+            ),
+          ];
         },
       ),
     );
@@ -200,7 +207,6 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Filter Inputs Row: Text Field for Custom Month/Year & Dropdown for Health Center
             Row(
               children: [
                 Expanded(
@@ -251,8 +257,6 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
               ],
             ),
             const SizedBox(height: 20),
-
-            // Section Title
             const Text(
               'Vaccine Wise Summary',
               style: TextStyle(
@@ -262,8 +266,6 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
               ),
             ),
             const SizedBox(height: 14),
-
-            // Combined StreamBuilder to compute data and automatically save/update it into Firestore per month
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('children').snapshots(),
               builder: (context, childrenSnapshot) {
@@ -284,16 +286,8 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
                     int fullyVaccinatedCount = 0;
 
                     if (vaccinationSnapshot.hasData) {
-                      final List<String> requiredVaccines = [
-                        'bcg',
-                        'opv 0',
-                        'opv 1 / pentavalent 1',
-                        'opv 2 / pentavalent 2',
-                        'opv 3 / pentavalent 3',
-                        'polio booster dose',
-                        'measles 1',
-                        'measles 2',
-                      ];
+                      // Map all items cleanly using lowercase keys for matching checks
+                      final List<String> requiredVaccines = _vaccineNames.map((v) => v.toLowerCase()).toList();
 
                       Map<String, Set<String>> vaccinatedChildMap = {};
 
@@ -346,7 +340,7 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
                             child: Row(
                               children: [
                                 SizedBox(
-                                  width: 140,
+                                  width: 170, // Increased width slightly to cleanly display names like Measles-Rubella (MR-1)
                                   child: Text(
                                     name,
                                     style: const TextStyle(
@@ -385,7 +379,6 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
                           );
                         }),
                         const SizedBox(height: 20),
-
                         Row(
                           children: [
                             Expanded(
@@ -420,8 +413,6 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
               },
             ),
             const SizedBox(height: 24),
-
-            // Download PDF Button
             SizedBox(
               width: double.infinity,
               height: 48,

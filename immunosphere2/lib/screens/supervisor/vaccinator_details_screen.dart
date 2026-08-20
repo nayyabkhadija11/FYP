@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class VaccinatorDetailsScreen extends StatefulWidget {
-  final String vaccinatorId;
+  final String vaccinatorId; // Yeh docId / uid hai (e.g. 'LM7ZgWkJpaW0ib6m2KRt9Ska...')
   final Map<String, dynamic>? initialData;
 
   const VaccinatorDetailsScreen({
@@ -21,7 +21,7 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   String _selectedFilter = 'This Week';
 
-  // 1. EXTRACT EMPLOYEE ID
+  // 1. EXTRACT EMPLOYEE ID (Checks user doc or finds mapping)
   String _getEmployeeId(Map<String, dynamic> data, String docId) {
     List<String> idKeys = [
       'employeeId',
@@ -39,17 +39,10 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
         return data[key].toString().trim();
       }
     }
-
-    for (var key in data.keys) {
-      if (data[key] is Map && key.toString().toUpperCase().startsWith('VAC')) {
-        return key.toString();
-      }
-    }
-
     return docId;
   }
 
-  // 2. FETCH HEALTH CENTER FROM BOTH USERS & VALID_EMPLOYEES COLLECTIONS
+  // 2. FETCH HEALTH CENTER
   Future<String> _fetchHealthCenter(
       String empId, Map<String, dynamic> userData) async {
     List<String> centerKeys = [
@@ -100,6 +93,41 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
     return 'N/A';
   }
 
+  // 3. ACCURATE VACCINATOR MATCHER (Matches UID, EmployeeId, and AdministeredBy)
+  bool _matchesVaccinator(Map<String, dynamic> data, String vaccinatorUid, String employeeId) {
+    if (vaccinatorUid.isEmpty && employeeId.isEmpty) return false;
+
+    final valuesToCheck = [
+      data['administeredBy'],
+      data['registeredBy'],
+      data['vaccinatorId'],
+      data['assignedVaccinatorId'],
+      data['assignedVaccinator'],
+      data['vaccinatorUid'],
+      data['createdBy'],
+      data['assignedTo'],
+      data['userId'],
+      data['employeeId'],
+    ];
+
+    for (final value in valuesToCheck) {
+      if (value != null) {
+        final valStr = value.toString().trim();
+        if (valStr.isNotEmpty) {
+          if (valStr == vaccinatorUid || valStr == employeeId) {
+            return true;
+          }
+          if (valStr.toLowerCase() == vaccinatorUid.toLowerCase() ||
+              valStr.toLowerCase() == employeeId.toLowerCase()) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,7 +165,6 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
 
           final String employeeId = _getEmployeeId(data, widget.vaccinatorId);
 
-          // Formatting Joined Date
           String joinedDate = '12 Jan 2024';
           if (data['createdAt'] != null && data['createdAt'] is Timestamp) {
             joinedDate = DateFormat('dd MMM yyyy')
@@ -152,12 +179,8 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. TOP VACCINATOR PROFILE CARD
-                _buildProfileCard(data, widget.vaccinatorId),
-
+                _buildProfileCard(data, widget.vaccinatorId, employeeId),
                 const SizedBox(height: 20),
-
-                // 2. PERFORMANCE OVERVIEW HEADER WITH FILTER
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -172,20 +195,11 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
                     _buildFilterDropdown(),
                   ],
                 ),
-
                 const SizedBox(height: 12),
-
-                // 3. STATS GRID (USING BOTH VACCINATOR ID & EMPLOYEE ID FOR SAFETY)
                 _buildPerformanceGrid(widget.vaccinatorId, employeeId),
-
                 const SizedBox(height: 20),
-
-                // 4. DETAILS CARD
                 _buildDetailsCard(data, joinedDate),
-
                 const SizedBox(height: 24),
-
-                // 5. PERFORMANCE REPORT BUTTON
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -225,12 +239,9 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
     );
   }
 
-  // ==========================================
-  // PROFILE CARD WIDGET
-  // ==========================================
-  Widget _buildProfileCard(Map<String, dynamic> data, String docId) {
+  Widget _buildProfileCard(Map<String, dynamic> data, String docId, String employeeId) {
     final String name = data['fullName'] ?? data['name'] ?? 'Maryam';
-    final String employeeId = _getEmployeeId(data, docId);
+    final String displayEmpId = employeeId.isNotEmpty ? employeeId : docId;
     final String status = data['status'] ?? 'Active';
 
     return Container(
@@ -282,7 +293,7 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  employeeId,
+                  displayEmpId,
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 6),
@@ -296,7 +307,7 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
                     const SizedBox(width: 4),
                     Expanded(
                       child: FutureBuilder<String>(
-                        future: _fetchHealthCenter(employeeId, data),
+                        future: _fetchHealthCenter(displayEmpId, data),
                         builder: (context, centerSnapshot) {
                           if (centerSnapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -345,9 +356,6 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
     );
   }
 
-  // ==========================================
-  // FILTER DROPDOWN
-  // ==========================================
   Widget _buildFilterDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -372,7 +380,7 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
               setState(() => _selectedFilter = newValue);
             }
           },
-          items: <String>['This Week', 'This Month', 'Today']
+          items: <String>['This Week', 'This Month', 'Today', 'All Time']
               .map<DropdownMenuItem<String>>((String value) {
             return DropdownMenuItem<String>(
               value: value,
@@ -384,93 +392,109 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
     );
   }
 
-  // ==========================================
-  // PERFORMANCE GRID (STATS) - DUAL FIELD QUERY
-  // ==========================================
   Widget _buildPerformanceGrid(String vaccinatorUid, String employeeId) {
     DateTime now = DateTime.now();
-    DateTime startDate;
+    DateTime? startDate;
 
     if (_selectedFilter == 'Today') {
       startDate = DateTime(now.year, now.month, now.day);
     } else if (_selectedFilter == 'This Week') {
       startDate = now.subtract(Duration(days: now.weekday - 1));
       startDate = DateTime(startDate.year, startDate.month, startDate.day);
-    } else {
+    } else if (_selectedFilter == 'This Month') {
       startDate = DateTime(now.year, now.month, 1);
+    } else {
+      startDate = null; // 'All Time' ke liye koi date restriction nahi
+    }
+
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is String) {
+        try {
+          return DateTime.parse(value);
+        } catch (_) {
+          try {
+            return DateFormat('dd MMM yyyy').parse(value);
+          } catch (e) {
+            return null;
+          }
+        }
+      }
+      return null;
     }
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      // Fetch all children and filter locally to match either vaccinatorId or employeeId reliably
-      stream: _db.collection('children').snapshots(),
+      stream: _db.collection('vaccinations').snapshots(),
       builder: (context, snapshot) {
-        int vaccinated = 0;
-        int routine = 0;
-        int polio = 0;
+        if (!snapshot.hasData) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(color: Color(0xFF231B92)),
+            ),
+          );
+        }
+
+        int totalVaccinated = 0;
+        int routineCount = 0;
+        int polioCount = 0;
         int missedRefused = 0;
 
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final allDocs = snapshot.data!.docs;
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data();
 
-          // Filter children belonging to this specific vaccinator (checking both UID and Employee ID)
-          final vaccinatorDocs = allDocs.where((doc) {
-            final docData = doc.data();
-            final String cVaccinatorId = (docData['vaccinatorId'] ?? '').toString().trim();
-            final String cEmployeeId = (docData['employeeId'] ?? docData['empId'] ?? '').toString().trim();
+          // 1. Verify Vaccinator match using UID or Employee ID
+          bool isMyVaccination = _matchesVaccinator(data, vaccinatorUid, employeeId);
+          if (!isMyVaccination) continue;
 
-            return cVaccinatorId == vaccinatorUid || 
-                   cVaccinatorId == employeeId || 
-                   cEmployeeId == employeeId ||
-                   cEmployeeId == vaccinatorUid;
-          }).toList();
+          // 2. Date Filtering Check (Skipped if All Time)
+          if (startDate != null) {
+            DateTime? dateVal = parseDate(data['administeredDate']) ??
+                parseDate(data['createdAt']) ??
+                parseDate(data['date']);
 
-          // Date filtering
-          final filteredDocs = vaccinatorDocs.where((doc) {
-            final docData = doc.data();
-            Timestamp? t = docData['timestamp'] as Timestamp? ??
-                docData['createdAt'] as Timestamp? ??
-                docData['date'] as Timestamp?;
+            if (dateVal != null && dateVal.isBefore(startDate)) {
+              continue;
+            }
+          }
 
-            if (t == null) return true;
-            return t.toDate().isAfter(startDate) ||
-                t.toDate().isAtSameMomentAs(startDate);
-          }).toList();
+          // 3. Status Extraction & Normalization
+          final String status = (data['status'] ?? '').toString().trim().toLowerCase();
+          
+          bool isVaccinated = status == 'vaccinated' ||
+              status == 'completed' ||
+              status == 'done' ||
+              status == 'yes' ||
+              status == 'success' ||
+              status == 'administered' ||
+              status == 'true';
 
-          vaccinated = filteredDocs.where((doc) {
-            final st = (doc.data()['status'] ??
-                    doc.data()['vaccinationStatus'] ?? '')
-                .toString()
-                .toLowerCase();
-            return st == 'vaccinated' || st == 'completed' || st == 'done';
-          }).length;
+          bool isMissedOrRefused = status == 'missed' ||
+              status == 'refused' ||
+              status == 'defaulter' ||
+              status == 'unvaccinated' ||
+              status == 'skip';
 
-          routine = filteredDocs.where((doc) {
-            final type = (doc.data()['type'] ??
-                    doc.data()['vaccineType'] ?? '')
-                .toString()
-                .toLowerCase();
-            return type == 'routine' || type.contains('routine');
-          }).length;
+          // 4. Categorize Records
+          if (isVaccinated) {
+            totalVaccinated++;
+            
+            final String vaccineName = (data['vaccineName'] ??
+                    data['type'] ??
+                    data['name'] ?? '').toString().trim().toLowerCase();
 
-          polio = filteredDocs.where((doc) {
-            final type = (doc.data()['type'] ??
-                    doc.data()['vaccineType'] ?? '')
-                .toString()
-                .toLowerCase();
-            return type == 'polio' || type.contains('polio');
-          }).length;
-
-          missedRefused = filteredDocs.where((doc) {
-            final st = (doc.data()['status'] ??
-                    doc.data()['vaccinationStatus'] ?? '')
-                .toString()
-                .toLowerCase();
-            return st == 'missed' ||
-                st == 'refused' ||
-                st == 'refusal' ||
-                st == 'defaulter' ||
-                doc.data()['isMissed'] == true;
-          }).length;
+            if (vaccineName.contains('polio') ||
+                vaccineName.contains('opv') ||
+                vaccineName.contains('ipv')) {
+              polioCount++;
+            } else {
+              routineCount++;
+            }
+          } else if (isMissedOrRefused) {
+            missedRefused++;
+          }
         }
 
         return GridView.count(
@@ -482,21 +506,21 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
           childAspectRatio: 1.5,
           children: [
             _statCard(
-              '$vaccinated',
+              '$totalVaccinated',
               'Vaccinated',
               Icons.person_outline,
               const Color(0xFF231B92),
               const Color(0xFFF3F1FD),
             ),
             _statCard(
-              '$routine',
+              '$routineCount',
               'Routine',
               Icons.center_focus_weak,
               const Color(0xFF2E7D32),
               const Color(0xFFEFF7F2),
             ),
             _statCard(
-              '$polio',
+              '$polioCount',
               'Polio',
               Icons.medical_services_outlined,
               const Color(0xFF231B92),
@@ -559,9 +583,6 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
     );
   }
 
-  // ==========================================
-  // DETAILS CARD
-  // ==========================================
   Widget _buildDetailsCard(Map<String, dynamic> data, String joinedDate) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -590,7 +611,7 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
           const SizedBox(height: 14),
           _detailRow(
             'Phone',
-            data['phone'] ?? '03xxxxxxxxxx',
+            data['phone'] ?? data['phoneNumber'] ?? '03xxxxxxxxxx',
             Icons.phone_outlined,
           ),
           const Divider(height: 20, thickness: 0.5),
@@ -602,7 +623,7 @@ class _VaccinatorDetailsScreenState extends State<VaccinatorDetailsScreen> {
           const Divider(height: 20, thickness: 0.5),
           _detailRow(
             'Assigned Area',
-            data['assignedArea'] ?? 'Jand Union Council',
+            data['assignedArea'] ?? data['area'] ?? 'Jand Union Council',
             Icons.map_outlined,
           ),
           const Divider(height: 20, thickness: 0.5),

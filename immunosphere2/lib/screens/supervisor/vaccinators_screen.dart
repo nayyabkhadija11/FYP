@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'add_vaccinator_screen.dart';
-import 'vaccinator_details_screen.dart'; // 1. Added import for Details Screen
+import 'vaccinator_details_screen.dart';
 
 class VaccinatorsScreen extends StatefulWidget {
   const VaccinatorsScreen({Key? key}) : super(key: key);
@@ -199,9 +199,10 @@ class _VaccinatorsScreenState extends State<VaccinatorsScreen> {
             // REAL-TIME FIREBASE VACCINATORS LIST
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                // Direct query matching the exact role in database
                 stream: _db
                     .collection('users')
-                    .where('role', whereIn: ['vaccinator', 'Vaccinator', 'VACCINATOR'])
+                    .where('role', isEqualTo: 'Vaccinator')
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -260,7 +261,6 @@ class _VaccinatorsScreenState extends State<VaccinatorsScreen> {
                       final bool isActive = status.toLowerCase() == 'active';
                       final Color statusColor = isActive ? Colors.green : Colors.orange;
 
-                      // 2. WRAPPED CARD IN INKWELL FOR NAVIGATION ON TAP
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
@@ -347,8 +347,6 @@ class _VaccinatorsScreenState extends State<VaccinatorsScreen> {
                                                 color: Colors.grey.shade600, fontSize: 12),
                                           ),
                                           const SizedBox(height: 4),
-
-                                          // REAL HEALTH CENTER FROM DYNAMIC FETCH
                                           Row(
                                             children: [
                                               const Icon(

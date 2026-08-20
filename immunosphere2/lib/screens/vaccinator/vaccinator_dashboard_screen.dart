@@ -106,7 +106,6 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
   void _listenForActiveCampaigns() {
     if (_currentUser == null) return;
 
-    // Filter campaigns by active status AND current logged-in vaccinator ID
     _campaignSubscription = FirebaseFirestore.instance
         .collection('campaigns')
         .where('status', isEqualTo: 'active')
@@ -208,6 +207,91 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
     );
   }
 
+  bool _matchesCurrentVaccinator(Map<String, dynamic> data) {
+    final currentUid = _currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return false;
+    }
+
+    final valuesToCheck = [
+      data['registeredBy'],
+      data['administeredBy'],
+      data['vaccinatorId'],
+      data['assignedVaccinatorId'],
+      data['assignedVaccinator'],
+      data['vaccinatorUid'],
+      data['createdBy'],
+      data['assignedTo'],
+    ];
+
+    for (final value in valuesToCheck) {
+      if (value != null && value.toString().trim() == currentUid.trim()) {
+        return true;
+      }
+    }
+
+    final assignedVaccinators = data['assignedVaccinators'];
+    if (assignedVaccinators is List) {
+      for (final value in assignedVaccinators) {
+        if (value != null && value.toString().trim() == currentUid.trim()) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  Widget _buildEmptyDashboardState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE0F2FE),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.inbox_outlined,
+                  color: Color(0xFF2563EB),
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No assigned work yet',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'This vaccinator has not been assigned any children or campaigns yet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -235,7 +319,7 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
                   .doc(_currentUser?.uid)
                   .get(),
               builder: (context, snapshot) {
-                String userName = 'Saad';
+                String userName = 'Vaccinator';
                 if (_currentUser?.displayName != null &&
                     _currentUser!.displayName!.isNotEmpty) {
                   userName = _currentUser!.displayName!;
@@ -277,57 +361,76 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ---- FIXED STATS SECTION ----
-                  // Pehle sirf 'children' collection read hoti thi aur uske
-                  // static 'status' field pe depend karta tha, jo kabhi update
-                  // hi nahi hota tha jab tak manually refused mark na ho.
-                  // Ab 'children' + 'vaccinations' dono collections read karke
-                  // VaccinationStatusHelper se wahi logic use kiya ja raha hai
-                  // jo child_details_screen.dart (Routine History) mein hai,
-                  // taake numbers hamesha match karein.
+                  // ---- ROBUST STATS SECTION ----
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance.collection('children').snapshots(),
                     builder: (context, childrenSnapshot) {
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance.collection('vaccinations').snapshots(),
                         builder: (context, vaccinationsSnapshot) {
-                          int totalChildren = 0;
+                          
+                          if (!childrenSnapshot.hasData || !vaccinationsSnapshot.hasData) {
+                            return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
+                          }
+
+                          final allChildDocs = childrenSnapshot.data!.docs;
+                          
+                          // Filter children belonging to current vaccinator
+                          final assignedChildDocs = allChildDocs.where((doc) {
+                            if (!doc.exists) return false;
+                            final data = doc.data() as Map<String, dynamic>? ?? const {};
+                            return _matchesCurrentVaccinator(data);
+                          }).toList();
+
+                          if (assignedChildDocs.isEmpty) {
+                            return _buildEmptyDashboardState();
+                          }
+
+                          int totalChildren = assignedChildDocs.length;
                           int missedCount = 0;
                           int pendingCount = 0;
 
-                          if (childrenSnapshot.hasData) {
-                            final childDocs = childrenSnapshot.data!.docs;
-                            totalChildren = childDocs.length;
+                          List<Map<String, dynamic>> allVaccinationDocs = vaccinationsSnapshot.data!.docs
+                              .where((doc) => doc.exists)
+                              .map((d) => d.data() as Map<String, dynamic>)
+                              .toList();
+                          
+                          final grouped = VaccinationStatusHelper.groupRecordsByChildId(allVaccinationDocs);
 
-                            List<Map<String, dynamic>> allVaccinationDocs = [];
-                            if (vaccinationsSnapshot.hasData) {
-                              allVaccinationDocs = vaccinationsSnapshot.data!.docs
-                                  .map((d) => d.data() as Map<String, dynamic>)
-                                  .toList();
-                            }
-                            final grouped =
-                                VaccinationStatusHelper.groupRecordsByChildId(allVaccinationDocs);
+                          for (var doc in assignedChildDocs) {
+                            var data = doc.data() as Map<String, dynamic>;
+                            DateTime dob = VaccinationStatusHelper.parseDob(data['dob']);
 
-                            for (var doc in childDocs) {
-                              var data = doc.data() as Map<String, dynamic>;
-                              DateTime dob = VaccinationStatusHelper.parseDob(data['dob']);
+                            String docId = doc.id;
+                            String regNo = (data['regNo'] ?? '').toString();
+                            String childIdField = (data['childId'] ?? '').toString();
 
-                              String docId = doc.id;
-                              String regNo = (data['regNo'] ?? '').toString();
+                            List<Map<String, dynamic>> childRecords = [
+                              ...(grouped[docId] ?? []),
+                              if (regNo.isNotEmpty) ...(grouped[regNo] ?? []),
+                              if (childIdField.isNotEmpty) ...(grouped[childIdField] ?? []),
+                            ];
 
-                              List<Map<String, dynamic>> childRecords = [
-                                ...(grouped[docId] ?? []),
-                                if (regNo.isNotEmpty) ...(grouped[regNo] ?? []),
-                              ];
+                            final result = VaccinationStatusHelper.getChildVaccineStatus(dob, childRecords);
 
-                              final result =
-                                  VaccinationStatusHelper.getChildVaccineStatus(dob, childRecords);
+                            int mCount = (result['missedCount'] ?? 0) as int;
+                            int rCount = (result['refusedCount'] ?? 0) as int;
+                            int dCount = (result['dueCount'] ?? 0) as int;
 
-                              if (result['missedCount'] > 0 || result['refusedCount'] > 0) {
-                                missedCount++;
-                              } else if (result['dueCount'] > 0) {
-                                pendingCount++;
-                              }
+                            bool hasRefusedOrMissedRecord = childRecords.any((rec) {
+                              final status = (rec['status'] ?? '').toString().toLowerCase();
+                              return status == 'refusal' || 
+                                     status == 'refused' || 
+                                     status == 'missed' || 
+                                     status == 'skipped' || 
+                                     status == 'delayed' || 
+                                     status == 'defaulted';
+                            });
+
+                            if (mCount > 0 || rCount > 0 || hasRefusedOrMissedRecord) {
+                              missedCount++;
+                            } else if (dCount > 0) {
+                              pendingCount++;
                             }
                           }
 
@@ -345,7 +448,13 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
                                     .where('status', isEqualTo: 'vaccinated')
                                     .snapshots(),
                                 builder: (context, snapshot) {
-                                  int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                                  final taskDocs = snapshot.data?.docs.where((doc) {
+                                        if (!doc.exists) return false;
+                                        final data = doc.data() as Map<String, dynamic>? ?? const {};
+                                        return _matchesCurrentVaccinator(data);
+                                      }).toList() ??
+                                      const [];
+                                  int count = taskDocs.length;
                                   return _buildExactStatCard(
                                       "Today's Vaccinations", "$count", const Color(0xFF4F46E5));
                                 },
