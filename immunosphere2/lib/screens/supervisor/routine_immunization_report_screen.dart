@@ -1,175 +1,394 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+/*import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 class RoutineImmunizationReportScreen extends StatefulWidget {
-  const RoutineImmunizationReportScreen({super.key});
+  const RoutineImmunizationReportScreen({Key? key}) : super(key: key);
 
   @override
-  State<RoutineImmunizationReportScreen> createState() => _RoutineImmunizationReportScreenState();
+  State<RoutineImmunizationReportScreen> createState() =>
+      _RoutineImmunizationReportScreenState();
 }
 
-class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationReportScreen> {
-  final TextEditingController _monthYearController = TextEditingController(text: 'May 2024');
-  
-  String _selectedHealthCenter = 'THQ Hospital Jand';
-  final List<String> _healthCenters = [
-    'THQ Hospital Jand',
-    'THQ Hospital Attock',
+class _RoutineImmunizationReportScreenState
+    extends State<RoutineImmunizationReportScreen> {
+  String selectedMonth = 'May 2026';
+  String selectedCenter = 'All Health Centers';
+
+  final List<String> months = ['May 2026', 'April 2026', 'March 2026'];
+  final List<String> healthCenters = [
+    'All Health Centers',
+    'Central Clinic',
+    'North Center',
+    'South Center'
   ];
 
-  // Expanded official vaccine list
-  final List<String> _vaccineNames = [
-    'BCG',
-    'OPV-0',
-    'OPV-1',
-    'OPV-2',
-    'OPV-3',
-    'Pentavalent-1',
-    'Pentavalent-2',
-    'Pentavalent-3',
-    'PCV-1',
-    'PCV-2',
-    'PCV-3',
-    'Rotavirus-1',
-    'Rotavirus-2',
-    'IPV-1',
-    'IPV-2',
-    'Measles-Rubella (MR-1)',
-    'Measles-Rubella (MR-2)',
-    'TCV (Typhoid)',
+  final List<Map<String, dynamic>> vaccineData = const [
+    {'name': 'BCG', 'pending': 48, 'refused': 3, 'missed': 2, 'coverage': 86, 'progress': 0.86},
+    {'name': 'OPV-0', 'pending': 45, 'refused': 3, 'missed': 3, 'coverage': 82, 'progress': 0.82},
+    {'name': 'Pentavalent-1', 'pending': 38, 'refused': 4, 'missed': 4, 'coverage': 76, 'progress': 0.76},
+    {'name': 'Pentavalent-2', 'pending': 35, 'refused': 5, 'missed': 5, 'coverage': 70, 'progress': 0.70},
+    {'name': 'Pentavalent-3', 'pending': 32, 'refused': 6, 'missed': 6, 'coverage': 64, 'progress': 0.64},
+    {'name': 'PCV-1', 'pending': 36, 'refused': 4, 'missed': 4, 'coverage': 72, 'progress': 0.72},
+    {'name': 'IPV', 'pending': 34, 'refused': 5, 'missed': 5, 'coverage': 68, 'progress': 0.68},
+    {'name': 'MR', 'pending': 27, 'refused': 6, 'missed': 6, 'coverage': 56, 'progress': 0.56},
   ];
 
-  @override
-  void dispose() {
-    _monthYearController.dispose();
-    super.dispose();
-  }
-
-  // Function to calculate live metrics and save/update them into Firebase grouped by month & health center
-  Future<void> _saveMonthlyReportToFirestore(
-      int totalChildren, int fullyVaccinated, int pending, Map<String, int> vaccineCounts) async {
-    String monthYear = _monthYearController.text.trim();
-    if (monthYear.isEmpty) return;
-
-    String docId = '${monthYear}_$_selectedHealthCenter';
-
-    Map<String, dynamic> reportData = {
-      'monthYear': monthYear,
-      'healthCenter': _selectedHealthCenter,
-      'totalChildren': totalChildren,
-      'fullyVaccinated': fullyVaccinated,
-      'pending': pending,
-      'vaccines': vaccineCounts,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
+  // Complete PDF layout including Summary Overview & Details
+  Future<void> _generatePdfReport() async {
     try {
-      await FirebaseFirestore.instance.collection('monthly_reports').doc(docId).set(reportData, SetOptions(merge: true));
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.MultiPage(
+              pageFormat: format,
+              margin: const pw.EdgeInsets.all(24),
+              build: (pw.Context pdfContext) {
+                return [
+                  // Title Block
+                  pw.Text(
+                    'Routine Immunization Report',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.green900,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Period: $selectedMonth | Health Center: $selectedCenter',
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Divider(color: PdfColors.green900, thickness: 1.5),
+                  pw.SizedBox(height: 12),
+
+                  // Health Center & Status Breakdown Details Block
+                  pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Health Center Information',
+                                style: pw.TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: PdfColors.green900)),
+                            pw.SizedBox(height: 6),
+                            pw.Text('Health Center: $selectedCenter', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('District: All Districts', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Reporting Month: $selectedMonth', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Report Generated On: 16 May 2026, 10:30 AM', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Report Generated By: Supervisor', style: const pw.TextStyle(fontSize: 9)),
+                          ],
+                        ),
+                      ),
+                      pw.SizedBox(width: 16),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('Child Status Breakdown',
+                                style: pw.TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: PdfColors.green900)),
+                            pw.SizedBox(height: 6),
+                            pw.Text('Total Eligible Children: 482 (100%)', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Fully Vaccinated: 420 (87.1%)', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Pending: 48 (9.9%)', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Refused: 32 (6.6%)', style: const pw.TextStyle(fontSize: 9)),
+                            pw.Text('Missed: 54 (11.2%)', style: const pw.TextStyle(fontSize: 9)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 16),
+
+                  // Vaccine Table Block
+                  pw.Text('Vaccine Wise Summary',
+                      style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.green900)),
+                  pw.SizedBox(height: 6),
+                  pw.Table.fromTextArray(
+                    headerStyle: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                        fontSize: 9),
+                    headerDecoration:
+                        const pw.BoxDecoration(color: PdfColors.green900),
+                    cellStyle: const pw.TextStyle(fontSize: 8),
+                    cellAlignment: pw.Alignment.centerLeft,
+                    headers: ['Vaccine', 'Pending', 'Refused', 'Missed', 'Coverage (%)'],
+                    data: vaccineData.map((item) {
+                      return [
+                        item['name'].toString(),
+                        item['pending'].toString(),
+                        item['refused'].toString(),
+                        item['missed'].toString(),
+                        '${item['coverage']}%',
+                      ];
+                    }).toList(),
+                  ),
+                  pw.SizedBox(height: 14),
+
+                  // Notes Box
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.grey100,
+                      border: pw.Border.all(color: PdfColors.grey300),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Note:', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'This report shows the routine immunization status of children for the selected month across all health centers.',
+                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
+                        ),
+                      ],
+                    ),
+                  ),
+                ];
+              },
+            ),
+          );
+          return pdf.save();
+        },
+      );
     } catch (e) {
-      debugPrint('Error saving monthly report: $e');
-    }
-  }
-
-  // Function to generate and download/print the PDF report
-  Future<void> _generateAndDownloadPdf() async {
-    String monthYear = _monthYearController.text.trim();
-    String docId = '${monthYear}_$_selectedHealthCenter';
-
-    DocumentSnapshot doc = await FirebaseFirestore.instance.collection('monthly_reports').doc(docId).get();
-
-    int totalChildren = 0;
-    int fullyVaccinated = 0;
-    int pending = 0;
-    Map<String, dynamic> vaccineData = {};
-
-    if (doc.exists && doc.data() != null) {
-      var data = doc.data() as Map<String, dynamic>;
-      totalChildren = data['totalChildren'] ?? 0;
-      fullyVaccinated = data['fullyVaccinated'] ?? 0;
-      pending = data['pending'] ?? 0;
-      if (data['vaccines'] is Map) {
-        vaccineData = Map<String, dynamic>.from(data['vaccines']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       }
     }
+  }
 
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) {
-          return [
-            pw.Text(
-              'Routine Immunization Report',
-              style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
-            ),
-            pw.SizedBox(height: 6),
-            pw.Text(
-              'Health Center: $_selectedHealthCenter | Period: $monthYear',
-              style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
-            ),
-            pw.Divider(thickness: 1.5, color: PdfColors.indigo900),
-            pw.SizedBox(height: 16),
-            pw.Text(
-              'Summary Statistics',
-              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
-            ),
-            pw.SizedBox(height: 8),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+  // Modal without right overflow lines
+  void _showReportDetailsModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildPdfStatBox('Total Children', '$totalChildren', PdfColors.indigo900),
-                _buildPdfStatBox('Fully Vaccinated', '$fullyVaccinated', PdfColors.green800),
-                _buildPdfStatBox('Pending', '$pending', PdfColors.red800),
+                Container(
+                  color: const Color(0xFF025232),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Report Details - $selectedMonth',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(modalContext),
+                        child: const Icon(Icons.close, color: Colors.white, size: 22),
+                      )
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Health Center Information',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF025232),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                _buildDetailRow('Health Center', selectedCenter),
+                                _buildDetailRow('District', 'All Districts'),
+                                _buildDetailRow('Reporting Month', selectedMonth),
+                                _buildDetailRow('Generated On', '16 May 2026'),
+                                _buildDetailRow('Generated By', 'Supervisor'),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  'Vaccines Included',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF025232),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'BCG, OPV-0, Pentavalent-1, Pentavalent-2, Pentavalent-3, PCV-1, IPV, MR',
+                                  style: TextStyle(fontSize: 10, color: Colors.black87, height: 1.3),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            height: 200,
+                            width: 1,
+                            color: Colors.grey.shade300,
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Child Status Breakdown',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF025232),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                _buildStatusRow(Colors.green, 'Fully Vaccinated', '420 (87.1%)'),
+                                _buildStatusRow(Colors.amber.shade700, 'Pending', '48 (9.9%)'),
+                                _buildStatusRow(Colors.red, 'Refused', '32 (6.6%)'),
+                                _buildStatusRow(Colors.grey.shade700, 'Missed', '54 (11.2%)'),
+                                const Divider(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: const [
+                                    Expanded(
+                                      child: Text('Total Eligible',
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                    ),
+                                    Text('482 (100%)',
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F8F5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFD0E6DB)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFF025232)),
+                              ),
+                              child: const Icon(Icons.article_outlined, color: Color(0xFF025232), size: 16),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'Note',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'This report shows the routine immunization status of children for the selected month across all health centers.',
+                                    style: TextStyle(fontSize: 10, color: Colors.black87, height: 1.3),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
+                ),
               ],
             ),
-            pw.SizedBox(height: 24),
-            pw.Text(
-              'Vaccine Wise Summary Breakdown',
-              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900),
-            ),
-            pw.SizedBox(height: 10),
-            pw.Table.fromTextArray(
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo100),
-              headerHeight: 25,
-              cellHeight: 25,
-              cellAlignments: {
-                0: pw.Alignment.centerLeft,
-                1: pw.Alignment.centerRight,
-              },
-              headers: <String>['Vaccine Name', 'Vaccinated Count'],
-              data: _vaccineNames.map((name) {
-                int count = vaccineData[name] ?? 0;
-                return [name, '$count'];
-              }).toList(),
-            ),
-          ];
-        },
-      ),
-    );
-
-    await Printing.layoutPdf(
-      name: 'Immunization_Report_${monthYear.replaceAll(' ', '_')}.pdf',
-      onLayout: (PdfPageFormat format) async => pdf.save(),
+          ),
+        );
+      },
     );
   }
 
-  pw.Widget _buildPdfStatBox(String title, String value, PdfColor color) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(12),
-      width: 160,
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400),
-        borderRadius: pw.BorderRadius.circular(8),
-      ),
-      child: pw.Column(
+  Widget _buildDetailRow(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          pw.Text(title, style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
-          pw.SizedBox(height: 6),
-          pw.Text(value, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: color)),
+          Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87), overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusRow(Color dotColor, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(label, style: const TextStyle(fontSize: 10, color: Colors.black87), overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+          Text(value, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Colors.black87)),
         ],
       ),
     );
@@ -178,305 +397,1004 @@ class _RoutineImmunizationReportScreenState extends State<RoutineImmunizationRep
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF7F9FB),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF025232),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF231B92)),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: const Text(
           'Routine Immunization Report',
-          style: TextStyle(
-            color: Color(0xFF231B92),
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list, color: Color(0xFF231B92)),
-            onPressed: () {},
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: TextField(
-                      controller: _monthYearController,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'Enter Month & Year',
-                        suffixIcon: Icon(Icons.edit, color: Color(0xFF231B92), size: 16),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
-                      onChanged: (val) {
-                        setState(() {});
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedHealthCenter,
-                        isExpanded: true,
-                        icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF231B92)),
-                        items: _healthCenters.map((center) {
-                          return DropdownMenuItem(
-                            value: center,
-                            child: Text(center, style: const TextStyle(fontSize: 13, overflow: TextOverflow.ellipsis)),
-                          );
-                        }).toList(),
-                        onChanged: (val) => setState(() => _selectedHealthCenter = val!),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: selectedMonth,
+                                isExpanded: true,
+                                icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade700),
+                                items: months.map((String month) {
+                                  return DropdownMenuItem<String>(
+                                    value: month,
+                                    child: Text(month, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => selectedMonth = val);
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Vaccine Wise Summary',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF231B92),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.location_city_outlined, size: 18, color: Colors.grey.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: selectedCenter,
+                                isExpanded: true,
+                                icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade700),
+                                items: healthCenters.map((String center) {
+                                  return DropdownMenuItem<String>(
+                                    value: center,
+                                    child: Text(
+                                      center,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => selectedCenter = val);
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 14),
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('children').snapshots(),
-              builder: (context, childrenSnapshot) {
-                int totalChildrenCount = 0;
-                if (childrenSnapshot.hasData) {
-                  totalChildrenCount = childrenSnapshot.data!.docs.length;
-                }
-                int maxVal = totalChildrenCount > 0 ? totalChildrenCount : 60;
-
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('vaccinations').snapshots(),
-                  builder: (context, vaccinationSnapshot) {
-                    Map<String, int> vaccineCounts = {};
-                    for (var name in _vaccineNames) {
-                      vaccineCounts[name] = 0;
-                    }
-
-                    int fullyVaccinatedCount = 0;
-
-                    if (vaccinationSnapshot.hasData) {
-                      // Map all items cleanly using lowercase keys for matching checks
-                      final List<String> requiredVaccines = _vaccineNames.map((v) => v.toLowerCase()).toList();
-
-                      Map<String, Set<String>> vaccinatedChildMap = {};
-
-                      for (var doc in vaccinationSnapshot.data!.docs) {
-                        var data = doc.data() as Map<String, dynamic>;
-                        String childId = (data['childId'] ?? '').toString().trim();
-                        String vaccineName = (data['vaccineName'] ?? '').toString().trim();
-                        String status = (data['status'] ?? '').toString().trim().toLowerCase();
-
-                        if (status == 'vaccinated') {
-                          for (var key in vaccineCounts.keys) {
-                            if (key.toLowerCase() == vaccineName.toLowerCase()) {
-                              vaccineCounts[key] = (vaccineCounts[key] ?? 0) + 1;
-                            }
-                          }
-
-                          if (childId.isNotEmpty && requiredVaccines.contains(vaccineName.toLowerCase())) {
-                            if (!vaccinatedChildMap.containsKey(childId)) {
-                              vaccinatedChildMap[childId] = {};
-                            }
-                            vaccinatedChildMap[childId]!.add(vaccineName.toLowerCase());
-                          }
-                        }
-                      }
-
-                      vaccinatedChildMap.forEach((childId, vaccinatedSet) {
-                        bool hasAllVaccines = requiredVaccines.every((v) => vaccinatedSet.contains(v));
-                        if (hasAllVaccines) {
-                          fullyVaccinatedCount++;
-                        }
-                      });
-                    }
-
-                    int pendingCount = totalChildrenCount - fullyVaccinatedCount;
-                    if (pendingCount < 0) pendingCount = 0;
-
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _saveMonthlyReportToFirestore(totalChildrenCount, fullyVaccinatedCount, pendingCount, vaccineCounts);
-                    });
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ..._vaccineNames.map((name) {
-                          int count = vaccineCounts[name] ?? 0;
-                          double progress = maxVal > 0 ? (count / maxVal).clamp(0.0, 1.0) : 0.0;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 14.0),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 170, // Increased width slightly to cleanly display names like Measles-Rubella (MR-1)
-                                  child: Text(
-                                    name,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF231B92),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: progress,
-                                      backgroundColor: Colors.grey.shade100,
-                                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF231B92)),
-                                      minHeight: 8,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                SizedBox(
-                                  width: 28,
-                                  child: Text(
-                                    '$count',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                    textAlign: TextAlign.end,
-                                  ),
-                                ),
-                              ],
+              const SizedBox(height: 12),
+              Card(
+                elevation: 0.5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          Text(
+                            'Vaccine Wise Summary',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF025232),
+                              fontSize: 15,
                             ),
-                          );
-                        }),
-                        const SizedBox(height: 20),
-                        Row(
+                          ),
+                          Icon(Icons.info_outline, color: Color(0xFF025232), size: 20),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 350),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: const [
+                                  SizedBox(width: 90, child: Text('Vaccine', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                  SizedBox(width: 90, child: Text('Fully\nVaccinated', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                  SizedBox(width: 45, child: Text('Pending', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                  SizedBox(width: 45, child: Text('Refused', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                  SizedBox(width: 45, child: Text('Missed', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                  SizedBox(width: 50, child: Text('Coverage\n(%)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Divider(color: Colors.grey.shade200, height: 1),
+                              const SizedBox(height: 6),
+                              ...vaccineData.map((v) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 7.0),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 90,
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.check_circle, color: Color(0xFF025232), size: 14),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                v['name'],
+                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 90,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(4),
+                                            child: LinearProgressIndicator(
+                                              minHeight: 6,
+                                              value: (v['progress'] as num).toDouble(),
+                                              color: const Color(0xFF025232),
+                                              backgroundColor: Colors.grey.shade200,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 45, child: Text('${v['pending']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFF025232), fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 45, child: Text('${v['refused']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 45, child: Text('${v['missed']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 50, child: Text('${v['coverage']}%', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFF025232), fontWeight: FontWeight.bold))),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                elevation: 0.5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Summary Overview',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF025232),
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
                           children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'Total Children',
-                                value: totalChildrenCount.toString(),
-                                valueColor: const Color(0xFF231B92),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'Fully Vaccinated',
-                                value: fullyVaccinatedCount.toString(),
-                                valueColor: Colors.green,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'Pending',
-                                value: pendingCount.toString(),
-                                valueColor: Colors.red,
-                              ),
-                            ),
+                            _buildSummaryCard('Total Children', '482', '100%', Icons.people, const Color(0xFF025232)),
+                            _buildSummaryCard('Fully Vaccinated', '420', '87.1%', Icons.check_circle_outline, const Color(0xFF025232)),
+                            _buildSummaryCard('Pending', '48', '9.9%', Icons.access_time, Colors.amber.shade700),
+                            _buildSummaryCard('Refused', '32', '6.6%', Icons.cancel_outlined, Colors.red),
+                            _buildSummaryCard('Missed', '54', '11.2%', Icons.remove_circle_outline, Colors.blueGrey),
                           ],
                         ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF231B92),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _generateAndDownloadPdf,
-                icon: const Icon(Icons.download, color: Colors.white, size: 18),
-                label: const Text(
-                  'Download PDF',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 12),
+              Card(
+                elevation: 0.5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.calendar_today_outlined, color: Color(0xFF025232), size: 18),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text('Data last updated', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                  Text('16 May 2026, 10:30 AM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
+                          OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey.shade400),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            ),
+                            onPressed: () => _showReportDetailsModal(context),
+                            child: Row(
+                              children: const [
+                                Text('View Details', style: TextStyle(fontSize: 11, color: Colors.black87)),
+                                SizedBox(width: 2),
+                                Icon(Icons.chevron_right, size: 16, color: Colors.black87),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF025232),
+                          minimumSize: const Size.fromHeight(44),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        onPressed: () async {
+                          await _generatePdfReport();
+                        },
+                        icon: const Icon(Icons.download, color: Colors.white, size: 18),
+                        label: const Text('Download PDF Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatCard({required String title, required String value, required Color valueColor}) {
+  Widget _buildSummaryCard(String title, String count, String percentage, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      width: 100,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFFFAFAFA),
         border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(title, style: const TextStyle(fontSize: 9, color: Colors.grey), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Text(count, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 2),
+          Text(percentage, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+}  */
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
+import '../../helpers/epi_schedule_helper.dart';
+import '../../helpers/vaccination_status_helper.dart';
+
+class RoutineImmunizationReportScreen extends StatefulWidget {
+  const RoutineImmunizationReportScreen({Key? key}) : super(key: key);
+
+  @override
+  State<RoutineImmunizationReportScreen> createState() =>
+      _RoutineImmunizationReportScreenState();
+}
+
+class _RoutineImmunizationReportScreenState
+    extends State<RoutineImmunizationReportScreen> {
+  // Supervisor ki hidayat: sirf DHQ Hospital Attock ke liye report banegi.
+  static const String selectedCenter = 'DHQ Hospital Attock';
+
+  late String selectedMonth;
+  late List<String> months;
+
+  // EPI schedule se nikali gayi asal vaccine order (18 doses).
+  late List<String> vaccineOrder;
+
+  late Future<Map<String, dynamic>> _reportFuture;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Pichle 12 mahine ki dropdown list bana rahe hain (latest month sab se upar).
+    final now = DateTime.now();
+    months = List.generate(12, (i) {
+      final d = DateTime(now.year, now.month - i, 1);
+      return DateFormat('MMMM yyyy').format(d);
+    });
+    selectedMonth = months.first;
+
+    // Schedule se unique vaccine names (in the order they occur) nikal rahe hain,
+    // taake report mein hamesha wahi 18 names dikhein jo actually schedule mein hain.
+    final dummySchedule = EpiScheduleHelper.generateEpiSchedule(DateTime.now());
+    vaccineOrder = dummySchedule
+        .expand((stage) => List<String>.from(stage['vaccines']))
+        .toList();
+
+    _reportFuture = _loadReportData();
+  }
+
+  void _onMonthChanged(String? val) {
+    if (val == null) return;
+    setState(() {
+      selectedMonth = val;
+      _reportFuture = _loadReportData();
+    });
+  }
+
+  /// DHQ Attock ke tamam children ka data laata hai, unke vaccination
+  /// records ke sath match karta hai, aur selectedMonth ke liye
+  /// vaccine-wise (vaccinated / pending / refused / missed) counts banata hai.
+  Future<Map<String, dynamic>> _loadReportData() async {
+    // 1) healthCenter field 'users' doc par kabhi missing ho sakti hai
+    // (purane accounts jo naye auth_service se pehle bane), lekin
+    // 'valid_employees' collection mein ye hamesha guaranteed maujood
+    // hoti hai (registration ke waqt hi set ki jati hai). Is liye
+    // source-of-truth ke taur par valid_employees use kar rahe hain.
+    final employeesSnap = await FirebaseFirestore.instance
+        .collection('valid_employees')
+        .where('healthCenter', isEqualTo: selectedCenter)
+        .get();
+
+    final employeeIds = employeesSnap.docs
+        .where((d) =>
+            (d.data()['role'] ?? '').toString().trim().toLowerCase() ==
+            'vaccinator')
+        .map((d) => d.id) // e.g. 'VAC-102'
+        .toList();
+
+    debugPrint(
+      '🟢 DEBUG: valid_employees with healthCenter="$selectedCenter" = ${employeesSnap.docs.length}, '
+      'vaccinator employeeIds = $employeeIds',
+    );
+
+    // 2) Ab in employeeIds ko 'users' collection ke 'employeeId' field se
+    // match kar ke asal Firebase uid nikal rahe hain (children ka
+    // 'registeredBy' field yahi uid store karta hai).
+    List<String> vaccinatorUids = [];
+    for (int i = 0; i < employeeIds.length; i += 30) {
+      final chunk = employeeIds.sublist(
+        i,
+        (i + 30 > employeeIds.length) ? employeeIds.length : i + 30,
+      );
+      if (chunk.isEmpty) continue;
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('employeeId', whereIn: chunk)
+          .get();
+      vaccinatorUids.addAll(snap.docs.map((d) => d.id));
+    }
+
+    debugPrint('🟢 DEBUG: matching users (vaccinators) found = ${vaccinatorUids.length} → $vaccinatorUids');
+
+    if (vaccinatorUids.isEmpty) {
+      return {
+        'vaccineData': vaccineOrder
+            .map((v) => {
+                  'name': v,
+                  'pending': 0,
+                  'refused': 0,
+                  'missed': 0,
+                  'coverage': 0,
+                  'progress': 0.0,
+                })
+            .toList(),
+        'totalChildrenRegistered': 0,
+        'totalDoseSlots': 0,
+        'fullyVaccinated': 0,
+        'pending': 0,
+        'refused': 0,
+        'missed': 0,
+        'debugVaccinatorCount': 0,
+        'debugChildrenCount': 0,
+        'debugVaccinationDocsCount': 0,
+        'debugUsersWithHealthCenterCount': employeesSnap.docs.length,
+      };
+    }
+
+    // ...phir un vaccinators ke registeredBy children nikalte hain (chunked,
+    // whereIn max 30 items leta hai).
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> childrenDocs = [];
+    for (int i = 0; i < vaccinatorUids.length; i += 30) {
+      final chunk = vaccinatorUids.sublist(
+        i,
+        (i + 30 > vaccinatorUids.length) ? vaccinatorUids.length : i + 30,
+      );
+      final snap = await FirebaseFirestore.instance
+          .collection('children')
+          .where('registeredBy', whereIn: chunk)
+          .get();
+      childrenDocs.addAll(snap.docs);
+    }
+
+    debugPrint('🟢 DEBUG: children found for "$selectedCenter" = ${childrenDocs.length}');
+
+    // 2) Vaccination records lookup ke liye ids collect kar rahe hain.
+    // childId kabhi doc.id hota hai, kabhi regNo (jaisa child_details_screen
+    // mein bhi dono try kiye jate hain), is liye dono include kar rahe hain.
+    final Set<String> idSet = {};
+    for (var doc in childrenDocs) {
+      idSet.add(doc.id);
+      final regNo = (doc.data()['regNo'] ?? '').toString();
+      if (regNo.isNotEmpty) idSet.add(regNo);
+    }
+    final idList = idSet.toList();
+
+    // 3) Firestore whereIn max 30 items leta hai, is liye chunks mein query karte hain.
+    final List<Map<String, dynamic>> allVaccinationDocs = [];
+    for (int i = 0; i < idList.length; i += 30) {
+      final chunk = idList.sublist(
+        i,
+        (i + 30 > idList.length) ? idList.length : i + 30,
+      );
+      if (chunk.isEmpty) continue;
+      final snap = await FirebaseFirestore.instance
+          .collection('vaccinations')
+          .where('childId', whereIn: chunk)
+          .get();
+      allVaccinationDocs.addAll(snap.docs.map((d) => d.data()));
+    }
+
+    debugPrint('🟢 DEBUG: vaccination docs fetched = ${allVaccinationDocs.length}');
+
+    final groupedRecords =
+        VaccinationStatusHelper.groupRecordsByChildId(allVaccinationDocs);
+
+    // 4) Har child ke liye is month mein due doses ka status nikal rahe hain.
+    final Map<String, Map<String, int>> vaccineCounts = {};
+    int totalVaccinated = 0, totalPending = 0, totalRefused = 0, totalMissed = 0;
+
+    for (var doc in childrenDocs) {
+      final data = doc.data();
+      final dynamic dobVal = data['dob'];
+
+      // Invalid/missing DOB wale child ko skip karna zaroori hai, warna
+      // parseDob() DateTime.now() fallback deta hai jo galat "At Birth"
+      // pending count bana deta.
+      if (!VaccinationStatusHelper.hasValidDob(dobVal)) {
+        debugPrint('🔴 DEBUG: skipping child ${doc.id} — invalid/missing dob: $dobVal');
+        continue;
+      }
+
+      final dob = VaccinationStatusHelper.parseDob(dobVal);
+      final docId = doc.id;
+      final regNo = (data['regNo'] ?? '').toString();
+
+      final records = <Map<String, dynamic>>[
+        ...(groupedRecords[docId] ?? []),
+        if (regNo.isNotEmpty) ...(groupedRecords[regNo] ?? []),
+      ];
+
+      final doseStatuses = VaccinationStatusHelper.getDoseStatusForMonth(
+        dob,
+        records,
+        selectedMonth,
+      );
+
+      debugPrint(
+        '🟡 DEBUG: child ${doc.id} dob=$dob → doses due in "$selectedMonth" = ${doseStatuses.length}',
+      );
+
+      for (var entry in doseStatuses) {
+        final vName = entry['vaccineName'] as String;
+        final status = entry['status'] as String;
+
+        vaccineCounts.putIfAbsent(
+          vName,
+          () => {'vaccinated': 0, 'refused': 0, 'missed': 0, 'pending': 0},
+        );
+        vaccineCounts[vName]![status] =
+            (vaccineCounts[vName]![status] ?? 0) + 1;
+
+        switch (status) {
+          case 'vaccinated':
+            totalVaccinated++;
+            break;
+          case 'refused':
+            totalRefused++;
+            break;
+          case 'missed':
+            totalMissed++;
+            break;
+          case 'pending':
+            totalPending++;
+            break;
+        }
+      }
+    }
+
+    // 5) UI ke liye vaccine-wise list, EPI schedule ki order mein.
+    final List<Map<String, dynamic>> vaccineData = vaccineOrder.map((vName) {
+      final counts = vaccineCounts[vName] ??
+          {'vaccinated': 0, 'refused': 0, 'missed': 0, 'pending': 0};
+      final total = counts.values.fold<int>(0, (a, b) => a + b);
+      final vaccinated = counts['vaccinated'] ?? 0;
+      final coverage = total > 0 ? (vaccinated / total * 100).round() : 0;
+
+      return {
+        'name': vName,
+        'pending': counts['pending'],
+        'refused': counts['refused'],
+        'missed': counts['missed'],
+        'coverage': coverage,
+        'progress': total > 0 ? vaccinated / total : 0.0,
+      };
+    }).toList();
+
+    final totalDoseSlots =
+        totalVaccinated + totalPending + totalRefused + totalMissed;
+
+    return {
+      'vaccineData': vaccineData,
+      'totalChildrenRegistered': childrenDocs.length,
+      'totalDoseSlots': totalDoseSlots,
+      'fullyVaccinated': totalVaccinated,
+      'pending': totalPending,
+      'refused': totalRefused,
+      'missed': totalMissed,
+      'debugVaccinatorCount': vaccinatorUids.length,
+      'debugChildrenCount': childrenDocs.length,
+      'debugVaccinationDocsCount': allVaccinationDocs.length,
+      'debugUsersWithHealthCenterCount': employeesSnap.docs.length,
+    };
+  }
+
+  double _pct(int part, int total) => total > 0 ? (part / total * 100) : 0;
+
+  // ---------------- PDF ----------------
+
+  Future<void> _generatePdfReport(Map<String, dynamic> report) async {
+    final vaccineData = report['vaccineData'] as List<Map<String, dynamic>>;
+    final totalSlots = report['totalDoseSlots'] as int;
+    final fullyVaccinated = report['fullyVaccinated'] as int;
+    final pending = report['pending'] as int;
+    final refused = report['refused'] as int;
+    final missed = report['missed'] as int;
+
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async {
+          final pdf = pw.Document();
+          pdf.addPage(
+            pw.MultiPage(
+              pageFormat: format,
+              margin: const pw.EdgeInsets.all(24),
+              build: (pw.Context pdfContext) {
+                return [
+                  pw.Text(
+                    'Routine Immunization Report',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.green900,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Period: $selectedMonth | Health Center: $selectedCenter',
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Divider(color: PdfColors.green900, thickness: 1.5),
+                  pw.SizedBox(height: 12),
+                  pw.Text('Child Status Breakdown (doses due this month)',
+                      style: pw.TextStyle(
+                          fontSize: 11,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.green900)),
+                  pw.SizedBox(height: 6),
+                  pw.Text('Total Dose Slots Due: $totalSlots',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  pw.Text(
+                      'Fully Vaccinated: $fullyVaccinated (${_pct(fullyVaccinated, totalSlots).toStringAsFixed(1)}%)',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  pw.Text('Pending: $pending (${_pct(pending, totalSlots).toStringAsFixed(1)}%)',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  pw.Text('Refused: $refused (${_pct(refused, totalSlots).toStringAsFixed(1)}%)',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  pw.Text('Missed: $missed (${_pct(missed, totalSlots).toStringAsFixed(1)}%)',
+                      style: const pw.TextStyle(fontSize: 9)),
+                  pw.SizedBox(height: 16),
+                  pw.Text('Vaccine Wise Summary',
+                      style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.green900)),
+                  pw.SizedBox(height: 6),
+                  pw.Table.fromTextArray(
+                    headerStyle: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                        fontSize: 9),
+                    headerDecoration:
+                        const pw.BoxDecoration(color: PdfColors.green900),
+                    cellStyle: const pw.TextStyle(fontSize: 8),
+                    cellAlignment: pw.Alignment.centerLeft,
+                    headers: ['Vaccine', 'Pending', 'Refused', 'Missed', 'Coverage (%)'],
+                    data: vaccineData.map((item) {
+                      return [
+                        item['name'].toString(),
+                        item['pending'].toString(),
+                        item['refused'].toString(),
+                        item['missed'].toString(),
+                        '${item['coverage']}%',
+                      ];
+                    }).toList(),
+                  ),
+                ];
+              },
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: valueColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          );
+          return pdf.save();
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  // ---------------- UI ----------------
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F9FB),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF025232),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: const Text(
+          'Routine Immunization Report',
+          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _reportFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFF025232)));
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading report: ${snapshot.error}'));
+            }
+
+            final report = snapshot.data!;
+            final vaccineData = report['vaccineData'] as List<Map<String, dynamic>>;
+            final totalChildrenRegistered = report['totalChildrenRegistered'] as int;
+            final totalSlots = report['totalDoseSlots'] as int;
+            final fullyVaccinated = report['fullyVaccinated'] as int;
+            final pending = report['pending'] as int;
+            final refused = report['refused'] as int;
+            final missed = report['missed'] as int;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 44,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey.shade700),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: selectedMonth,
+                                    isExpanded: true,
+                                    icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade700),
+                                    items: months.map((String month) {
+                                      return DropdownMenuItem<String>(
+                                        value: month,
+                                        child: Text(month, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                                      );
+                                    }).toList(),
+                                    onChanged: _onMonthChanged,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Health center fixed to DHQ Attock — supervisor's instruction.
+                      Expanded(
+                        child: Container(
+                          height: 44,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.location_city_outlined, size: 18, color: Colors.grey.shade700),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  selectedCenter,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 0.5,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const [
+                              Text(
+                                'Vaccine Wise Summary',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF025232),
+                                  fontSize: 15,
+                                ),
+                              ),
+                              Icon(Icons.info_outline, color: Color(0xFF025232), size: 20),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 350),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: const [
+                                      SizedBox(width: 130, child: Text('Vaccine', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 90, child: Text('Fully\nVaccinated', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 45, child: Text('Pending', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 45, child: Text('Refused', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 45, child: Text('Missed', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                      SizedBox(width: 50, child: Text('Coverage\n(%)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold))),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Divider(color: Colors.grey.shade200, height: 1),
+                                  const SizedBox(height: 6),
+                                  ...vaccineData.map((v) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 7.0),
+                                      child: Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 130,
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.check_circle, color: Color(0xFF025232), size: 14),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    v['name'],
+                                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width: 90,
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: LinearProgressIndicator(
+                                                  minHeight: 6,
+                                                  value: (v['progress'] as num).toDouble(),
+                                                  color: const Color(0xFF025232),
+                                                  backgroundColor: Colors.grey.shade200,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(width: 45, child: Text('${v['pending']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFF025232), fontWeight: FontWeight.bold))),
+                                          SizedBox(width: 45, child: Text('${v['refused']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold))),
+                                          SizedBox(width: 45, child: Text('${v['missed']}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold))),
+                                          SizedBox(width: 50, child: Text('${v['coverage']}%', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFF025232), fontWeight: FontWeight.bold))),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 0.5,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Summary Overview',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF025232),
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$totalChildrenRegistered children registered at $selectedCenter — $totalSlots vaccine doses due in $selectedMonth',
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 12),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildSummaryCard('Doses Due', '$totalSlots', '100%', Icons.people, const Color(0xFF025232)),
+                                _buildSummaryCard('Fully Vaccinated', '$fullyVaccinated', '${_pct(fullyVaccinated, totalSlots).toStringAsFixed(1)}%', Icons.check_circle_outline, const Color(0xFF025232)),
+                                _buildSummaryCard('Pending', '$pending', '${_pct(pending, totalSlots).toStringAsFixed(1)}%', Icons.access_time, Colors.amber.shade700),
+                                _buildSummaryCard('Refused', '$refused', '${_pct(refused, totalSlots).toStringAsFixed(1)}%', Icons.cancel_outlined, Colors.red),
+                                _buildSummaryCard('Missed', '$missed', '${_pct(missed, totalSlots).toStringAsFixed(1)}%', Icons.remove_circle_outline, Colors.blueGrey),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 0.5,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF025232),
+                          minimumSize: const Size.fromHeight(44),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        onPressed: () async {
+                          await _generatePdfReport(report);
+                        },
+                        icon: const Icon(Icons.download, color: Colors.white, size: 18),
+                        label: const Text('Download PDF Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(String title, String count, String percentage, IconData icon, Color color) {
+    return Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAFA),
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(title, style: const TextStyle(fontSize: 9, color: Colors.grey), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Text(count, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 2),
+          Text(percentage, style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
     );
