@@ -288,4 +288,4 @@ class _ViewAllScreenState extends State<ViewAllScreen> {
       ),
     );
   }
-}
+} 
