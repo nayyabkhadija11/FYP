@@ -26,6 +26,42 @@ class CampaignChildListScreen extends StatefulWidget {
 class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
   String searchQuery = '';
 
+  // FIX: search bar ka focus har letter par khota tha kyunke .snapshots()
+  // seedha build() ke andar call ho raha tha — har setState par ek NAYA
+  // stream banta tha, StreamBuilder loading state mein jata tha, aur
+  // TextField unmount/remount ho kar focus kho deta tha. Ab stream sirf
+  // ek dafa banta hai aur controller alag se maintain hota hai.
+  final TextEditingController _searchController = TextEditingController();
+  Stream<QuerySnapshot>? _assignmentsStream;
+
+  // COLOR THEME: app-wide deep green (dashboard/profile ke sath consistent)
+  static const Color primaryGreen = Color(0xFF0B4D30);
+  static const Color accentGreen = Color(0xFF0E7A45);
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid != null) {
+      _assignmentsStream = FirebaseFirestore.instance
+          .collection('campaign_assignments')
+          .where('campaignId', isEqualTo: widget.campaignId)
+          .where('vaccinatorId', isEqualTo: currentUid)
+          .snapshots();
+    }
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() => searchQuery = _searchController.text);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -37,18 +73,18 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
           children: [
             Text(
               widget.campaignTitle,
-              style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
               widget.dates,
-              style: const TextStyle(color: Colors.grey, fontSize: 11),
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
             ),
           ],
         ),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        backgroundColor: primaryGreen,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
@@ -56,38 +92,18 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
       body: currentUid == null
           ? const Center(child: Text('User login nahi hai.', style: TextStyle(color: Colors.grey)))
           : StreamBuilder<QuerySnapshot>(
-              // NEW: 'vaccinatorId' filter add kiya — pehle yeh screen
-              // poori campaign ke sab bachay dikha rahi thi, is vaccinator
-              // ko assign kiye gaye sirf uske apne bachay nahi.
-              stream: FirebaseFirestore.instance
-                  .collection('campaign_assignments')
-                  .where('campaignId', isEqualTo: widget.campaignId)
-                  .where('vaccinatorId', isEqualTo: currentUid)
-                  .snapshots(),
+              stream: _assignmentsStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF00BFA5)));
+                  return const Center(child: CircularProgressIndicator(color: accentGreen));
                 }
 
                 if (snapshot.hasError) {
-                  // Agar Firestore ko naya composite index chahiye ho to
-                  // error message main uska seedha "create index" link
-                  // milta hai — wo console main khol kar "Create Index"
-                  // dabana kaafi hoga.
                   return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red, fontSize: 12)));
                 }
 
                 final docs = snapshot.data?.docs ?? [];
 
-                // Business Rules Matching Reports Logic
-                //
-                // NEW: RecordStatusScreen 'House Locked' aur 'Child Not
-                // Available' ko save karte waqt 'Missed' main map kar deta
-                // hai (asal reason 'statusReason' field main save hoti
-                // hai). Missed count isliye ab seedha 'Missed' status
-                // check karta hai — pehle yahan 'House Locked'/'Child Not
-                // Available' dhoonda ja raha tha jo Firestore main kabhi
-                // save hi nahi hota, is liye count hamesha 0 rehta tha.
                 int target = docs.length;
                 int vaccinated = docs.where((d) => d['status'] == 'Vaccinated').length;
                 int pending = docs.where((d) => d['status'] == 'Pending').length;
@@ -121,11 +137,11 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildStatBox("Target", '$target', const Color(0xFF00BFA5)),
-                              _buildStatBox("Vaccinated", '$vaccinated', Colors.green),
-                              _buildStatBox("Pending", '$pending', Colors.orange),
+                              _buildStatBox("Target", '$target', accentGreen),
+                              _buildStatBox("Vaccinated", '$vaccinated', accentGreen),
+                              _buildStatBox("Pending", '$pending', const Color(0xFFF59E0B)),
                               _buildStatBox("Missed", '$missed', Colors.redAccent),
-                              _buildStatBox("Refused", '$refused', Colors.red),
+                              _buildStatBox("Refused", '$refused', const Color(0xFFEF4444)),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -133,7 +149,7 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Overall Progress', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF00BFA5))),
+                              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: accentGreen)),
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -143,7 +159,7 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                               value: progress,
                               minHeight: 8,
                               backgroundColor: Colors.grey.shade200,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00BFA5)),
+                              valueColor: const AlwaysStoppedAnimation<Color>(accentGreen),
                             ),
                           ),
                         ],
@@ -154,7 +170,8 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                     Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: TextField(
-                        onChanged: (val) => setState(() => searchQuery = val),
+                        controller: _searchController,
+                        cursorColor: accentGreen,
                         decoration: InputDecoration(
                           hintText: 'Search child by name or address',
                           hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
@@ -169,6 +186,10 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: accentGreen, width: 1.5),
                           ),
                         ),
                       ),
@@ -190,15 +211,6 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                                 String address = data['address'] ?? 'Address Not Provided';
                                 String status = data['status'] ?? 'Pending';
 
-                                // NEW: 'Missed' ke peeche asal reason
-                                // (House Locked / Child Not Available)
-                                // 'statusReason' field main save hoti hai.
-                                // Chip par ab hamesha generic "Missed"
-                                // dikhta hai (Vaccinated/Refused ki tarah
-                                // consistent) — displayStatus sirf
-                                // RecordStatusScreen dobara kholte waqt
-                                // sahi radio option pehle se select karne
-                                // ke liye use hoti hai.
                                 String displayStatus = (status == 'Missed' &&
                                         (data['statusReason'] as String?)?.isNotEmpty == true)
                                     ? data['statusReason']
@@ -228,15 +240,15 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
                                       );
                                     },
                                     leading: CircleAvatar(
-                                      backgroundColor: const Color(0xFF00BFA5).withOpacity(0.1),
+                                      backgroundColor: accentGreen.withOpacity(0.1),
                                       child: Text(
                                         '${index + 1}',
-                                        style: const TextStyle(color: Color(0xFF00BFA5), fontWeight: FontWeight.bold),
+                                        style: const TextStyle(color: accentGreen, fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                     title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                     subtitle: Text(
-                                      '$age • $regNo\n$address',
+                                      '$age \u2022 $regNo\n$address',
                                       style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                                     ),
                                     trailing: Container(
@@ -278,24 +290,24 @@ class _CampaignChildListScreenState extends State<CampaignChildListScreen> {
 
   Color _getStatusBgColor(String status) {
     switch (status) {
-      case 'Vaccinated': return Colors.green.shade50;
-      case 'Pending': return Colors.orange.shade50;
+      case 'Vaccinated': return const Color(0xFFECFDF5);
+      case 'Pending': return const Color(0xFFFFFBEB);
       case 'Missed':
       case 'House Locked':
       case 'Child Not Available': return Colors.red.shade50;
-      case 'Refused': return Colors.red.shade100;
+      case 'Refused': return const Color(0xFFFEF2F2);
       default: return Colors.grey.shade100;
     }
   }
 
   Color _getStatusTextColor(String status) {
     switch (status) {
-      case 'Vaccinated': return Colors.green;
-      case 'Pending': return Colors.orange.shade800;
+      case 'Vaccinated': return accentGreen;
+      case 'Pending': return const Color(0xFFF59E0B);
       case 'Missed':
       case 'House Locked':
       case 'Child Not Available': return Colors.redAccent;
-      case 'Refused': return Colors.red;
+      case 'Refused': return const Color(0xFFEF4444);
       default: return Colors.black;
     }
   }
