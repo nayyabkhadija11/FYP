@@ -517,45 +517,56 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLoginButton() {
-    return SizedBox(
-      height: 44,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: darkGreen,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          elevation: 0,
+  return SizedBox(
+    height: 44,
+    child: ElevatedButton(
+      onPressed: _isLoading ? null : _handleLogin,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: darkGreen,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
         ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Text(
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+      child: _isLoading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+          : Stack(
+              alignment: Alignment.center,
+              children: const [
+                // 1. Text hamesha exact Center mein rahega
+                Align(
+                  alignment: Alignment.center,
+                  child: Text(
                     'Login',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 17,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(width: 6),
-                  Icon(Icons.arrow_forward_rounded,
-                      color: Colors.white, size: 16),
-                ],
-              ),
-      ),
-    );
-  }
-
+                ),
+                // 2. Icon bilkul Right corner par set ho jayega
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+    ),
+  );
+}
   Widget _buildCreateAccountButton() {
     return SizedBox(
       height: 44,
