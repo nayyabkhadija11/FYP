@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:immunosphere2/services/campaign_service.dart';
 import 'package:immunosphere2/models/campaign_model.dart';
+import 'package:immunosphere2/helpers/epi_schedule_helper.dart';
 
 enum CertificateType { routine, polio }
 
@@ -132,23 +133,26 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
           .snapshots(),
       builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
-        final rows = docs.where((d) {
+
+        // Keep ALL given records (including refused) — we need them to
+        // correctly classify each scheduled vaccine as Completed/Refused,
+        // and whatever's left unmatched + overdue becomes Missed.
+        final givenRecords = docs.map((d) {
           final data = d.data() as Map<String, dynamic>;
-          final status = (data['status'] ?? '').toString().toLowerCase();
-          return status != 'refused';
+          return {
+            'vaccineName': (data['vaccineName'] ?? '').toString(),
+            'dose': (data['dose'] ?? '-').toString(),
+            'status': (data['status'] ?? '').toString().toLowerCase(),
+            'administeredDate': data['administeredDate'],
+            'administeredBy': data['administeredBy']?.toString(),
+            'centerName': data['centerName'] as String?,
+          };
         }).toList();
 
-        rows.sort((a, b) {
-          final da = (a.data() as Map<String, dynamic>)['administeredDate'];
-          final db_ = (b.data() as Map<String, dynamic>)['administeredDate'];
-          final dtA = da is Timestamp ? da.toDate() : DateTime(2000);
-          final dtB = db_ is Timestamp ? db_.toDate() : DateTime(2000);
-          return dtA.compareTo(dtB);
-        });
-
-        final vaccinatorIds = rows
-            .map((d) => (d.data() as Map<String, dynamic>)['administeredBy']?.toString() ?? '')
-            .where((id) => id.isNotEmpty)
+        final vaccinatorIds = givenRecords
+            .map((r) => r['administeredBy'] as String?)
+            .where((id) => id != null && id.isNotEmpty)
+            .cast<String>()
             .toSet()
             .toList();
 
@@ -157,19 +161,89 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
           builder: (context, vaccSnap) {
             final nameById = {for (var v in (vaccSnap.data ?? [])) v['id'] as String: v['name'] as String};
 
-            final tableRows = rows.map((d) {
-              final data = d.data() as Map<String, dynamic>;
-              final rawDate = data['administeredDate'];
-              final dateStr = rawDate is Timestamp ? DateFormat('dd MMM yyyy').format(rawDate.toDate()) : '-';
-              return {
-                'vaccine': (data['vaccineName'] ?? '').toString(),
-                'dose': (data['dose'] ?? '-').toString(),
-                'date': dateStr,
-                'vaccinator': nameById[data['administeredBy']?.toString()] ?? '-',
-                'center': (data['centerName'] as String?)?.isNotEmpty == true ? data['centerName'] as String : '-',
-                'status': 'Completed',
-              };
-            }).toList();
+            final schedule = EpiScheduleHelper.generateEpiSchedule(dob);
+            final now = DateTime.now();
+            final List<List<String>> tableRows = [];
+            String? lastKnownCenter;
+            final Set<Map<String, dynamic>> matchedGivenRecords = {};
+
+            for (var stage in schedule) {
+              final DateTime dueDate = stage['dueDate'];
+              final List<String> vaccines = List<String>.from(stage['vaccines']);
+
+              for (var vaccine in vaccines) {
+                final targetNorm = _normalize(vaccine);
+                Map<String, dynamic>? matched;
+                for (var r in givenRecords) {
+                  final storedNorm = _normalize(r['vaccineName'] as String);
+                  final matches = storedNorm == targetNorm ||
+                      storedNorm.contains(targetNorm) ||
+                      targetNorm.contains(storedNorm);
+                  if (matches) {
+                    matched = r;
+                    break;
+                  }
+                }
+
+                if (matched != null) {
+                  matchedGivenRecords.add(matched);
+                  final isRefused = matched['status'] == 'refused';
+                  final rawDate = matched['administeredDate'];
+                  final dateStr = rawDate is Timestamp ? DateFormat('dd MMM yyyy').format(rawDate.toDate()) : '-';
+                  final vaccinatorName = nameById[matched['administeredBy']] ?? '-';
+                  final centerName = (matched['centerName'] as String?)?.isNotEmpty == true ? matched['centerName'] as String : '-';
+                  if (centerName != '-') lastKnownCenter = centerName;
+
+                  tableRows.add([
+                    vaccine,
+                    matched['dose'] as String,
+                    dateStr,
+                    vaccinatorName,
+                    centerName,
+                    isRefused ? 'Refused' : 'Completed',
+                  ]);
+                } else {
+                  final isMissed = now.isAfter(dueDate.add(const Duration(days: 14)));
+                  if (isMissed) {
+                    tableRows.add([
+                      vaccine,
+                      '-',
+                      DateFormat('dd MMM yyyy').format(dueDate),
+                      '-',
+                      '-',
+                      'Missed',
+                    ]);
+                  }
+                  // Not yet due -> upcoming, not part of a history certificate, so skip.
+                }
+              }
+            }
+
+            // Extra administered doses that don't match any standard EPI
+            // vaccine name (e.g. booster doses) — still real records, so
+            // they're kept, just appended as their own Completed rows.
+            final extraSortable = <MapEntry<DateTime, List<String>>>[];
+            for (var r in givenRecords) {
+              if (matchedGivenRecords.contains(r)) continue;
+              final isRefused = r['status'] == 'refused';
+              final rawDate = r['administeredDate'];
+              final dt = rawDate is Timestamp ? rawDate.toDate() : DateTime(2000);
+              final dateStr = rawDate is Timestamp ? DateFormat('dd MMM yyyy').format(dt) : '-';
+              final vaccinatorName = nameById[r['administeredBy']] ?? '-';
+              final centerName = (r['centerName'] as String?)?.isNotEmpty == true ? r['centerName'] as String : '-';
+              if (centerName != '-') lastKnownCenter = centerName;
+
+              extraSortable.add(MapEntry(dt, [
+                r['vaccineName'] as String,
+                r['dose'] as String,
+                dateStr,
+                vaccinatorName,
+                centerName,
+                isRefused ? 'Refused' : 'Completed',
+              ]));
+            }
+            extraSortable.sort((a, b) => a.key.compareTo(b.key));
+            tableRows.addAll(extraSortable.map((e) => e.value));
 
             return _certificateBody(
               context: context,
@@ -178,14 +252,18 @@ class _CertificateViewScreenState extends State<CertificateViewScreen> {
               dob: dob,
               gender: gender,
               tableHeaders: const ['Vaccine', 'Dose', 'Date', 'Vaccinator', 'Center', 'Status'],
-              tableRows: tableRows.map((r) => [r['vaccine']!, r['dose']!, r['date']!, r['vaccinator']!, r['center']!, r['status']!]).toList(),
+              tableRows: tableRows,
               sectionTitle: 'Vaccination Record',
-              generatedAtCenter: tableRows.isNotEmpty ? tableRows.last['center']! : null,
+              generatedAtCenter: lastKnownCenter,
             );
           },
         );
       },
     );
+  }
+
+  String _normalize(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
   Widget _buildPolioCertificate(BuildContext context, String name, DateTime dob, String gender) {
