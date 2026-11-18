@@ -150,7 +150,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
           : 'N/A';
       final houseAddress = _houseAddressController.text.trim();
       final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final parentCnic = _cnicController.text.trim();
+      final parentCnic = _cnicController.text.replaceAll('-', '').trim();
 
       // Full address combined for screens that read a single 'address' field
       // (e.g. parent module's child_detail_screen.dart), while district,
@@ -692,7 +692,7 @@ class _RegisterChildScreenState extends State<RegisterChildScreen> {
           : 'N/A';
       final houseAddress = _houseAddressController.text.trim();
       final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final parentCnic = _cnicController.text.trim();
+      final parentCnic = _cnicController.text.replaceAll('-', '').trim();
 
       final String fullAddress = [
         if (houseAddress.isNotEmpty) houseAddress,

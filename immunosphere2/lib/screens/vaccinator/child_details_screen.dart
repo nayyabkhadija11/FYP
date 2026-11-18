@@ -128,7 +128,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> with SingleTick
         final dynamic dobVal = data['dob'];
         final String gender = data['gender'] ?? 'Female';
         final String motherName = data['motherName'] ?? 'Zainab';
-        final String cnic = data['cnic'] ?? data['guardianCnic'] ?? data['motherCnic'] ?? '35202-7654321-9';
+        final String cnic = data['cnic'] ?? data['guardianCnic'] ?? data['motherCnic'] ?? 'N/A';
         final String phone = data['phoneNumber'] ?? data['phone'] ?? 'N/A';
         final String village = data['village'] ?? data['address'] ?? 'N/A';
         final String nextDue = data['nextDue'] ?? 'OPV 3 / Pentavalent 3';
