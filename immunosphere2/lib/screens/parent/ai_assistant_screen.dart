@@ -1060,7 +1060,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_markdown/flutter_markdown.dart';
 
-// If your folders are different, fix these paths.
 import '../../helpers/epi_schedule_helper.dart';
 import '../../models/child_model.dart';
 import '../../models/vaccination_task_model.dart';
@@ -1086,7 +1085,7 @@ enum MsgKind {
   children,
   due,
   missed,
-  list, // schedule / completed / history
+  list,
   precautions,
   precautionDetail,
   warning,
@@ -1103,15 +1102,15 @@ class QuickAction {
 
 class ChatMessage {
   final String? id;
-  final String text; // plain text (saved in Firestore + sent to AI as history)
+  final String text;
   final bool isUser;
   final String? imagePath;
   final Uint8List? imageBytes;
   final bool hasImage;
   final DateTime time;
-  final MsgKind kind; // how the message is drawn (text or a card)
-  final Object? payload; // data for cards (in memory only)
-  final List<QuickAction> actions; // follow-up buttons (in memory only)
+  final MsgKind kind;
+  final Object? payload;
+  final List<QuickAction> actions;
 
   ChatMessage({
     this.id,
@@ -1141,7 +1140,6 @@ class _Pending {
   _Pending(this.intent, this.text, this.advise);
 }
 
-// One line inside a card (vaccine name, small text, coloured status).
 class _Row {
   final String title;
   final String subtitle;
@@ -1163,7 +1161,7 @@ class _DueData {
 class _MissedData {
   final ChildModel child;
   final List<_Row> missed;
-  final List<_Row> attempts; // refused / absent attempts
+  final List<_Row> attempts;
   _MissedData(this.child, this.missed, this.attempts);
 }
 
@@ -1182,7 +1180,6 @@ class _ListData {
   _ListData(this.child, this.title, this.icon, this.sections, this.empty);
 }
 
-// ---- AI generated precautions ----
 class _PrecSection {
   final String key;
   final String title;
@@ -1197,19 +1194,18 @@ class _PrecData {
 }
 
 class _PrecautionPayload {
-  final String key; // '' = overview of all sections
+  final String key;
   final _PrecData data;
   _PrecautionPayload(this.key, this.data);
 }
 
-// ---- AI understanding of the parent's message ----
 class _RouteResult {
   final _Intent intent;
   final bool needsChild;
   final bool advice;
   final String childName;
-  final String language; // english | urdu | roman_urdu
-  final String emergency; // AI written warning, empty if none
+  final String language;
+  final String emergency;
   _RouteResult({
     required this.intent,
     required this.needsChild,
@@ -1227,7 +1223,7 @@ class _Parsed {
 }
 
 // ===================================================================
-// HELPERS (dates, status, json, matching)
+// HELPERS
 // ===================================================================
 DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -1238,8 +1234,6 @@ const List<String> _months = [
 
 String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 
-// Dose number is part of the vaccine name in the EPI schedule
-// (Pentavalent-2, OPV-0, Measles-Rubella (MR-1)).
 String _doseLabel(String vaccine) {
   final m = RegExp(r'(\d+)\)?\s*$').firstMatch(vaccine.trim());
   if (m == null) return '';
@@ -1252,7 +1246,6 @@ String _withDose(String vaccine) {
   return d.isEmpty ? vaccine : '$vaccine  ($d)';
 }
 
-// Polio campaign tasks: still waiting for an outcome.
 bool _isPending(VaccinationTaskModel t) => t.status == VaccineStatus.dueToday;
 
 int _byDue(VaccinationTaskModel a, VaccinationTaskModel b) =>
@@ -1300,7 +1293,6 @@ _Status _recordStatus(String s) {
   }
 }
 
-// Status of polio / registration tasks.
 _Status _statusOf(VaccinationTaskModel t) {
   switch (t.status) {
     case VaccineStatus.vaccinated:
@@ -1340,7 +1332,6 @@ _Row _doseRow(DoseItem d) {
 _Row _taskRow(VaccinationTaskModel t) =>
     _Row(t.vaccines, 'Due: ${_fmtDate(t.dueDate)}', _statusOf(t));
 
-// Reads a JSON object out of an AI reply (even if it has ```json fences).
 Map<String, dynamic>? _parseJson(String raw) {
   final s = raw.trim();
   final a = s.indexOf('{');
@@ -1353,7 +1344,6 @@ Map<String, dynamic>? _parseJson(String raw) {
   return null;
 }
 
-// Matches the child name chosen by the AI with the real registered children.
 ChildModel? _matchChild(String name, List<ChildModel> kids) {
   final n = name.trim().toLowerCase();
   if (n.isEmpty) return null;
@@ -1420,7 +1410,9 @@ class AIAssistantScreen extends StatefulWidget {
 
 class _AIAssistantScreenState extends State<AIAssistantScreen> {
   // IMPORTANT: put your NEW Google AI Studio key here. Never share it publicly.
-  static const String _apiKey = 'PASTE_YOUR_NEW_KEY_HERE';
+  // (Before publishing the app, move to Firebase AI Logic so the key is not
+  // inside the APK.)
+  static const String _apiKey = 'AQ.Ab8RN6I5qYKsIOedfr6PR9FG7QBTtzrjT7g7Y5-7TUhWiieD2w';
 
   static const String _welcomeText =
       'Assalam-o-Alaikum! Welcome to ImmunoBot. I am your vaccination and '
@@ -1434,8 +1426,8 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     _QuickOption('Ask a Question', Icons.help_outline_rounded),
   ];
 
-  late final GenerativeModel _model; // chat answers
-  late final GenerativeModel _jsonModel; // understanding + precautions (JSON)
+  late final GenerativeModel _model;
+  late final GenerativeModel _jsonModel;
   final ChatbotDataService _data = ChatbotDataService();
 
   ChatSession? _currentSession;
@@ -1453,7 +1445,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   late final stt.SpeechToText _speech;
   bool _isListening = false;
   bool _speechAvailable = false;
-  final String _speechLocale = 'en_US'; // 'ur_PK' try kar sakti hain
+  final String _speechLocale = 'en_US';
 
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
@@ -1461,10 +1453,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   final DateTime _welcomeTime = DateTime.now();
 
   // ---- guided-flow state ----
-  ChildModel? _selectedChild; // child chosen in this conversation
-  _Pending? _pending; // what to do once a child is picked
-  String _lang = 'english'; // english | urdu | roman_urdu (decided by the AI)
-  final Map<String, _PrecData> _precCache = {}; // AI precautions per language
+  ChildModel? _selectedChild;
+  _Pending? _pending;
+  String _lang = 'english';
+  final Map<String, _PrecData> _precCache = {};
+  List<ChildModel>? _cachedKids; // parent's children (loaded once)
 
   bool get _useRoman => _lang != 'english';
   String _t(String en, String ro) => _useRoman ? ro : en;
@@ -1507,7 +1500,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   }
 
   // ---------------------------------------------------------------
-  // Chat history (Firestore) - unchanged logic
+  // Chat history (Firestore)
   // ---------------------------------------------------------------
   Future<void> _loadSessions() async {
     if (_uid == null) {
@@ -1647,46 +1640,60 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       _selectedChild = null;
       _pending = null;
       _lang = 'english';
+      _cachedKids = null; // reload children (a new child may be registered)
     });
   }
 
-  Future<void> _deleteChat(String id) async {
-    if (_uid != null) {
-      try {
-        final sessionRef = _firestore
-            .collection('users')
-            .doc(_uid)
-            .collection('chatSessions')
-            .doc(id);
-        final messagesSnap = await sessionRef.collection('messages').get();
-        for (final m in messagesSnap.docs) {
-          await m.reference.delete();
+  // Deletes from Firestore in the background (batched, much faster than
+  // deleting message by message).
+  Future<void> _deleteChatFromFirestore(String id) async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      final sessionRef = _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('chatSessions')
+          .doc(id);
+      final messagesSnap = await sessionRef.collection('messages').get();
+      final docs = messagesSnap.docs;
+      for (var i = 0; i < docs.length; i += 400) {
+        final batch = _firestore.batch();
+        for (final m in docs.skip(i).take(400)) {
+          batch.delete(m.reference);
         }
-        await sessionRef.delete();
-      } catch (e) {
-        debugPrint('Failed to delete chat session from Firestore: $e');
+        await batch.commit();
       }
+      await sessionRef.delete();
+    } catch (e) {
+      debugPrint('Failed to delete chat session from Firestore: $e');
     }
+  }
 
+  Future<void> _deleteChat(String id) async {
+    // 1) Remove from the screen immediately.
+    final wasCurrent = _currentSession?.id == id;
     if (!mounted) return;
     setState(() {
       _allSessions.removeWhere((s) => s.id == id);
-    });
-
-    if (_allSessions.isEmpty) {
-      await _createNewChat();
-    } else if (mounted &&
-        !_allSessions.any((s) => s.id == _currentSession?.id)) {
-      setState(() {
+      if (wasCurrent && _allSessions.isNotEmpty) {
         _currentSession = _allSessions.first;
         _selectedChild = null;
         _pending = null;
-      });
+      }
+    });
+
+    // 2) Delete from Firestore in the background (no waiting).
+    _deleteChatFromFirestore(id);
+
+    // 3) If nothing is left, open a fresh empty chat.
+    if (_allSessions.isEmpty) {
+      await _createNewChat();
     }
   }
 
   // ---------------------------------------------------------------
-  // Voice + image (unchanged)
+  // Voice + image
   // ---------------------------------------------------------------
   Future<void> _initSpeech() async {
     try {
@@ -1954,7 +1961,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
 
     final r = await _classify(text, kidList);
     if (r == null) {
-      await _askAI(text); // fall back to a normal AI answer
+      await _askAI(text);
       return;
     }
     _lang = r.language;
@@ -1975,7 +1982,6 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     final named = _matchChild(r.childName, kidList);
     if (named != null) _selectedChild = named;
 
-    // General / symptom questions
     if (r.intent == _Intent.none) {
       if (!r.needsChild ||
           kidList.isEmpty ||
@@ -1984,13 +1990,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         await _askAI(text);
         return;
       }
-      // Personal question but we do not know which child yet.
       _pending = _Pending(_Intent.none, text, false);
       _showChildPicker(kidList);
       return;
     }
 
-    // Child-specific vaccination questions
     if (kids == null) {
       _showLoadError();
       return;
@@ -2001,6 +2005,16 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     }
     if (named != null) {
       await _runIntent(named, r.intent, text, r.advice);
+      return;
+    }
+    if (_selectedChild != null && kids.length == 1) {
+      await _runIntent(_selectedChild!, r.intent, text, r.advice);
+      return;
+    }
+    // Only one child registered: no need to ask which child.
+    if (kids.length == 1) {
+      _selectedChild = kids.first;
+      await _runIntent(kids.first, r.intent, text, r.advice);
       return;
     }
     _pending = _Pending(r.intent, text, r.advice);
@@ -2064,9 +2078,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   }
 
   Future<List<ChildModel>?> _fetchChildren({bool silent = false}) async {
+    if (_cachedKids != null) return _cachedKids;
     if (mounted) setState(() => _isLoading = true);
     try {
-      return await _data.getMyChildren();
+      final kids = await _data.getMyChildren();
+      _cachedKids = kids;
+      return kids;
     } catch (e) {
       debugPrint('Failed to load children: $e');
       if (!silent) _showLoadError();
@@ -2082,6 +2099,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     if (kids == null) return;
     if (kids.isEmpty) {
       _showNoChildren();
+      return;
+    }
+    if (kids.length == 1) {
+      _selectedChild = kids.first;
+      await _runIntent(kids.first, intent, text, advise);
       return;
     }
     _pending = _Pending(intent, text, advise);
@@ -2105,7 +2127,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     ));
     _addBot(ChatMessage(
       text:
-          'Children: ${kids.map((k) => '${k.name} (${k.formattedAge})').join(', ')}',
+          'Children: ${kids.map((k) => '${k.name} (${k.ageLabel})').join(', ')}',
       isUser: false,
       kind: MsgKind.children,
       payload: kids,
@@ -2201,7 +2223,6 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
 
     final next = d.nextDue;
 
-    // Polio campaign (kept separate from routine immunization)
     final today = _dayOnly(DateTime.now());
     final polioPending = d.polio.where(_isPending).toList()..sort(_byDue);
     final upcoming = polioPending
@@ -2245,7 +2266,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                   'Why Is This Vaccine Important?',
                   Icons.info_outline_rounded,
                   () => _askAI(
-                      'Explain simply why the vaccine(s) "$names" are important for ${child.name} (${child.formattedAge}).')),
+                      'Explain simply why the vaccine(s) "$names" are important for ${child.name} (${child.ageLabel}).')),
               QuickAction(
                   'What If I Miss the Date?',
                   Icons.event_busy_rounded,
@@ -2302,7 +2323,6 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
             ],
     ));
 
-    // Parent also asked "what should I do?" in the same sentence.
     if (advise && missed.isNotEmpty) {
       await _askAI(
           "${child.name} has missed these doses: $names. What should I do now? Explain the next steps simply.");
@@ -2425,8 +2445,15 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     ));
   }
 
-  void _showContactVaccinator(ChildModel child) {
-    final hc = child.healthCenter.trim();
+  Future<void> _showContactVaccinator(ChildModel child) async {
+    if (mounted) setState(() => _isLoading = true);
+    String hc = '';
+    try {
+      hc = (await _data.getHealthCentre(child)).trim();
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+
     _botText(
       hc.isEmpty
           ? _t(
@@ -2446,7 +2473,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   }
 
   // ---------------------------------------------------------------
-  // Precautions: written by the AI (not stored in the app)
+  // Precautions: written by the AI
   // ---------------------------------------------------------------
   String _precautionsPrompt() {
     final b = StringBuffer();
@@ -2545,7 +2572,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   }
 
   // ---------------------------------------------------------------
-  // AI (Gemini) answers with real child records + dynamic follow-ups
+  // AI (Gemini) answers using the child's REAL records
   // ---------------------------------------------------------------
   List<Content> _buildHistory() {
     final msgs = List<ChatMessage>.from(_currentSession!.messages);
@@ -2575,15 +2602,16 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         .toList();
   }
 
-  // Writes one child's real records for the AI.
   void _writeChildData(StringBuffer b, ChildVaccineData d) {
     final c = d.child;
-    final hc = c.healthCenter.trim().isEmpty ? 'not recorded' : c.healthCenter.trim();
+    final hc = d.centre.isEmpty ? 'not recorded' : d.centre;
     b.writeln(
-        'Child: ${c.name}, ${c.gender}, age ${c.formattedAge}, health centre: $hc');
+        'Child: ${c.name}, ${c.gender}, age ${c.ageLabel} (born ${_fmtDate(c.dob)}), health centre: $hc');
     b.writeln('Routine EPI schedule status for this child:');
     for (final x in d.doses) {
-      final rec = x.givenOn == null ? '' : ' | record date ${_fmtDate(x.givenOn!)}';
+      final rec = x.givenOn == null
+          ? ''
+          : ' | record date ${_fmtDate(x.givenOn!)} (${DateTime.now().difference(x.givenOn!).inDays} days ago)';
       b.writeln(
           '- ${x.stage} | ${x.vaccine} | due ${_fmtDate(x.dueDate)} | ${_doseStatus(x).label}$rec');
     }
@@ -2604,7 +2632,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     if (child != null) {
       if (data == null) {
         b.writeln(
-            'Selected child: ${child.name}, age ${child.formattedAge}. Vaccination records could not be loaded right now.');
+            'Selected child: ${child.name}, age ${child.ageLabel}. Vaccination records could not be loaded right now.');
       } else {
         b.writeln('Selected child and the real vaccination records:');
         _writeChildData(b, data);
@@ -2639,11 +2667,15 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     b.writeln(
         '5. If a child is known, use the child\'s name and age, and make clear what comes from the records versus general guidance.');
     b.writeln(
-        '6. Status meanings: Vaccinated = given; Pending = not due yet; Due Today = due today; Overdue = past the due date with no record that it was given (do NOT call it missed); Missed = officially marked missed in the records; Refused = the parent refused it.');
+        '6. Status meanings: Vaccinated = given; Pending = not due yet; Due Today = due today; Overdue = past the due date but still within 14 days, no record yet (do NOT call it missed); Missed = more than 14 days past due with no record, or officially marked missed; Refused = the parent refused it.');
     if (hasImage) {
       b.writeln(
           '7. An image is attached. Do NOT diagnose from it. Describe only general visible things carefully, explain that a photo cannot confirm a diagnosis, and recommend a doctor or health-centre check when appropriate.');
     }
+    b.writeln(
+        '9. If a dose is Overdue or Missed: tell the parent to visit or contact the vaccinator / health centre as soon as possible; say that missed doses can usually still be given later and the series normally does NOT restart, but the vaccinator decides the exact plan. Never tell them to skip the dose.');
+    b.writeln(
+        '10. If the parent says the child is unwell (fever, swelling, rash, crying, vomiting) and a vaccine was given in the last 7 days according to the records, say that mild fever or swelling is a common reaction, give simple comfort advice, and ALWAYS list the danger signs that need a doctor immediately.');
     b.writeln(
         '8. End with one final line exactly like: FOLLOWUPS: option one | option two | option three  (2 to 3 short follow-up questions the parent may tap next, max 5 words each, same language as your reply, relevant to your answer). Write nothing after that line.');
     b.writeln('[PARENT MESSAGE]');
@@ -2672,9 +2704,22 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     if (mounted) setState(() => _isLoading = true);
     _scrollToBottom();
     try {
-      final child = _selectedChild;
+      var child = _selectedChild;
       ChildVaccineData? data;
       var all = <ChildVaccineData>[];
+
+      List<ChildModel> kids = _cachedKids ?? <ChildModel>[];
+      if (_cachedKids == null) {
+        try {
+          kids = await _data.getMyChildren();
+          _cachedKids = kids;
+        } catch (e) {
+          debugPrint('Could not load children for AI context: $e');
+        }
+      }
+
+      // Only one child registered: that child is the one being asked about.
+      if (child == null && kids.length == 1) child = kids.first;
 
       if (child != null) {
         try {
@@ -2682,20 +2727,15 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         } catch (e) {
           debugPrint('Could not load records for AI context: $e');
         }
-      } else {
-        try {
-          final kids = await _data.getMyChildren();
-          final res = await Future.wait(kids.map((k) async {
-            try {
-              return await _data.getChildVaccineData(k);
-            } catch (_) {
-              return null;
-            }
-          }));
-          all = res.whereType<ChildVaccineData>().toList();
-        } catch (e) {
-          debugPrint('Could not load all records for AI context: $e');
-        }
+      } else if (kids.isNotEmpty) {
+        final res = await Future.wait(kids.map((k) async {
+          try {
+            return await _data.getChildVaccineData(k);
+          } catch (_) {
+            return null;
+          }
+        }));
+        all = res.whereType<ChildVaccineData>().toList();
       }
 
       final chat = _model.startChat(history: _buildHistory());
@@ -2828,24 +2868,14 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        leadingWidth: canGoBack ? 96 : 56,
-        leading: Builder(
-          builder: (context) => Row(
-            children: [
-              if (canGoBack)
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded,
-                      color: Colors.white),
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-              IconButton(
-                icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
-            ],
-          ),
-        ),
-        titleSpacing: 0,
+        automaticallyImplyLeading: false,
+        leading: canGoBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
+        titleSpacing: canGoBack ? 0 : 16,
         title: Row(
           children: [
             const CircleAvatar(
@@ -2873,18 +2903,15 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-            onSelected: (value) {
-              if (value == 'new' && !_busy()) _createNewChat();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'new', child: Text('Start New Chat')),
-            ],
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu_rounded, color: Colors.white),
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
+            ),
           ),
         ],
       ),
-      drawer: _buildDrawer(),
+      endDrawer: _buildDrawer(),
       body: SafeArea(
         child: Column(
           children: [
@@ -2932,7 +2959,6 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     );
   }
 
-  // Cards (child picker, due, missed, lists, precautions, warning)
   Widget _buildRich(ChatMessage msg, bool isLast) {
     Widget content;
     switch (msg.kind) {
@@ -3567,7 +3593,7 @@ class _ChildBar extends StatelessWidget {
           const SizedBox(width: 10),
           Flexible(
             child: Text(
-              '${child.name}  •  ${child.formattedAge}',
+              '${child.name}  •  ${child.ageLabel}',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
@@ -3627,7 +3653,7 @@ class _ChildGrid extends StatelessWidget {
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14)),
-                                    Text(k.formattedAge,
+                                    Text(k.ageLabel,
                                         style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey.shade700)),
@@ -3692,7 +3718,7 @@ class _DueCard extends StatelessWidget {
                     children: [
                       _InfoRow('Stage', data.stage),
                       _InfoRow('Due Date', data.dueLabel),
-                      _InfoRow('Age', data.child.formattedAge),
+                      _InfoRow('Age', data.child.ageLabel),
                       if (data.child.healthCenter.trim().isNotEmpty)
                         _InfoRow('Health Centre', data.child.healthCenter),
                       const SizedBox(height: 6),
@@ -3883,7 +3909,6 @@ class _ListCard extends StatelessWidget {
   }
 }
 
-// One precaution card. The title and points are written by the AI.
 class _PrecautionSection extends StatelessWidget {
   final _PrecSection section;
   final bool full;
