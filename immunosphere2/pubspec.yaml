@@ -34,6 +34,10 @@ dependencies:
   cloud_firestore: ^5.0.0
   firebase_messaging: ^15.2.10
 
+  # Local notifications (banner + daily reminders, Cloud Functions ke baghair)
+  flutter_local_notifications: ^17.2.4
+  timezone: ^0.9.4
+
   # Date Formatting & Locales
   intl: ^0.19.0
 

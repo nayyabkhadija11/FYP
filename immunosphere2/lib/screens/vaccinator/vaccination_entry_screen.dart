@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../../services/notification_writer.dart';
 
 class VaccinationEntryScreen extends StatefulWidget {
   final Map<String, dynamic>? childData;
@@ -118,7 +119,7 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: Color(0xFF5C33CF)),
+            colorScheme: const ColorScheme.light(primary: Color(0xFF0B4D30)),
           ),
           child: child!,
         );
@@ -160,6 +161,9 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
       // address (houseAddress / address) khud utha kar record ke sath
       // save kar diya jata hai. Supervisor ki hidayat ke mutabiq.
       String vaccinationAddress = '';
+      // NEW: parent ko notification bhejne ke liye bache ka cnic aur naam
+      String parentCnic = '';
+      String notifChildName = 'Your child';
       try {
         final childDoc = await FirebaseFirestore.instance
             .collection('children')
@@ -171,6 +175,9 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
                   childInfo['address'] ??
                   '')
               .toString();
+          parentCnic = (childInfo['cnic'] ?? '').toString();
+          notifChildName =
+              (childInfo['fullName'] ?? childInfo['name'] ?? 'Your child').toString();
         }
       } catch (_) {
         // Agar kisi wajah se child doc fetch na ho, to address khali
@@ -238,13 +245,24 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
 
       batch.update(childRef, childUpdate);
 
+      // NEW: parent ko notification (Cloud Functions ke baghair)
+      NotificationWriter.addToBatch(
+        batch,
+        cnic: parentCnic,
+        title: mappedStatus == 'refused' ? 'Vaccine Refused' : 'Vaccine Administered',
+        message: mappedStatus == 'refused'
+            ? '$_selectedVaccine was marked as refused for $notifChildName.'
+            : '$notifChildName has received the $_selectedVaccine dose.',
+        childId: _selectedChildDocId,
+      );
+
       await batch.commit();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Vaccination record saved successfully!'),
-            backgroundColor: Color(0xFF10B981),
+            backgroundColor: Color(0xFF0B4D30),
           ),
         );
         Navigator.pop(context);
@@ -297,7 +315,7 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: LinearProgressIndicator(color: Color(0xFF5C33CF)));
+                    return const Center(child: LinearProgressIndicator(color: Color(0xFF0E7A45)));
                   }
 
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -408,12 +426,17 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
               TextField(
                 controller: _remarksController,
                 maxLines: 2,
+                cursorColor: const Color(0xFF0E7A45),
                 decoration: InputDecoration(
                   hintText: 'Enter remarks',
                   hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                    focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF0E7A45), width: 1.5),
                   ),
                 ),
               ),
@@ -423,7 +446,7 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveVaccinationRecord,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5C33CF),
+                  backgroundColor: const Color(0xFF0B4D30),
                   minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -441,13 +464,16 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
       ),
     );
   }
-
   InputDecoration _dropdownDecoration() {
     return InputDecoration(
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF0E7A45), width: 1.5),
       ),
     );
   }
@@ -478,4 +504,4 @@ class _VaccinationEntryScreenState extends State<VaccinationEntryScreen> {
       ),
     );
   }
-} 
+}
