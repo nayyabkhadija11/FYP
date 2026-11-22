@@ -867,7 +867,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> with SingleTick
       if (snap.docs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Ye bacha aap ko kisi campaign mein assign nahi hai.'),
+            content: Text('This child is not assigned to you in any campaign.'),
             backgroundColor: Colors.orange,
           ),
         );

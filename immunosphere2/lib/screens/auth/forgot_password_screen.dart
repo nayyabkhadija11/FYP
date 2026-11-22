@@ -74,7 +74,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _sendResetLink,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
+                  backgroundColor: const Color(0xFF015233),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),

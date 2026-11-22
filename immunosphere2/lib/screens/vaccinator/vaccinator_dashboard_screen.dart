@@ -500,7 +500,7 @@ class _DashboardHomeContentState extends State<DashboardHomeContent> {
                                   int count = taskDocs.length;
                                   // COLOR THEME: indigo -> green
                                   return _buildExactStatCard(
-                                      "Today's Vaccinations", "$count", const Color(0xFF0E7A45));
+                                      "Total Vaccinations", "$count", const Color(0xFF0E7A45));
                                 },
                               ),
                               _buildExactStatCard(
