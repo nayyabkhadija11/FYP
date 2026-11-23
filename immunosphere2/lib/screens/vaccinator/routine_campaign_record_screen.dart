@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../helpers/epi_schedule_helper.dart';
 import '../../helpers/vaccination_status_helper.dart';
+import '../../services/notification_writer.dart';
 
 /// Routine Immunization campaign ka form.
 /// (Polio / Sub National Drive ke liye purani RecordStatusScreen hi khulti hai.)
@@ -254,6 +255,19 @@ class _RoutineCampaignRecordScreenState
           });
         }
 
+        // NEW: parent ko ek hi notification (saari vaccines ek message me)
+        final childLabel =
+            (_childData['fullName'] ?? _childData['name'] ?? widget.childName).toString();
+        NotificationWriter.addToBatch(
+          batch,
+          cnic: (_childData['cnic'] ?? '').toString(),
+          title: isVaccinated ? 'Vaccine Administered' : 'Vaccine Refused',
+          message: isVaccinated
+              ? '$childLabel has received ${chosen.join(', ')} in the campaign.'
+              : 'Campaign vaccination (${chosen.join(', ')}) was marked as refused for $childLabel.',
+          childId: widget.childId,
+        );
+
         final givenNames = <String>[
           ..._records
               .where((r) =>
@@ -277,6 +291,16 @@ class _RoutineCampaignRecordScreenState
       } else {
         // House Locked / Child Not Available -> Missed (Polio form jaisa hi rule)
         assignmentStatus = 'Missed';
+
+        // NEW: parent ko "Missed" notification
+        NotificationWriter.addToBatch(
+          batch,
+          cnic: (_childData['cnic'] ?? '').toString(),
+          title: 'Vaccine Missed',
+          message:
+              'The vaccinator visited but ${(_childData['fullName'] ?? _childData['name'] ?? widget.childName)} could not be vaccinated ($_visitStatus). Please visit your nearest BHU center.',
+          childId: widget.childId,
+        );
       }
 
       batch.update(
@@ -750,17 +774,9 @@ class _RoutineCampaignRecordScreenState
         final address =
             (_childData['houseAddress'] ?? _childData['address'] ?? '').toString();
 
-        String centerName = '';
-        try {
-          if (user != null) {
-            final u = await db.collection('users').doc(user.uid).get();
-            final ud = u.data();
-            if (ud != null) {
-              centerName =
-                  (ud['healthCenter'] ?? ud['health_center'] ?? '').toString();
-            }
-          }
-        } catch (_) {}
+        // Campaign ghar par hoti hai, is liye center khali rakhte hain.
+        // Certificate mein phir bache ke ghar ka address dikhega.
+        const String centerName = '';
 
         final chosen = _pending
             .where((p) => _selected.contains(p.name))

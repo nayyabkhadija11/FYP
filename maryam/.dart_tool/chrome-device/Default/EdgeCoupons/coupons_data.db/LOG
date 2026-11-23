@@ -1,0 +1,35 @@
+2026/04/26-11:34:06.418 1ea8 Reusing MANIFEST C:\Users\CALYPS~1\AppData\Local\Temp\flutter_tools.a388241b\flutter_tools_chrome_device.9e8d63da\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/04/26-11:34:06.421 1ea8 Recovering log #42
+2026/04/26-11:34:06.421 1ea8 Reusing old log C:\Users\CALYPS~1\AppData\Local\Temp\flutter_tools.a388241b\flutter_tools_chrome_device.9e8d63da\Default\EdgeCoupons/coupons_data.db/000042.log 
+2026/04/26-11:34:06.425 1ea8 Delete type=0 #4
+2026/04/26-11:34:06.425 1ea8 Delete type=0 #7
+2026/04/26-11:34:06.425 1ea8 Delete type=2 #8
+2026/04/26-11:34:06.425 1ea8 Delete type=0 #10
+2026/04/26-11:34:06.428 1ea8 Delete type=2 #11
+2026/04/26-11:34:06.429 1ea8 Delete type=0 #13
+2026/04/26-11:34:06.431 1ea8 Delete type=2 #14
+2026/04/26-11:34:06.477 1ea8 Delete type=0 #16
+2026/04/26-11:34:06.477 1ea8 Delete type=2 #17
+2026/04/26-11:34:06.508 1ea8 Delete type=0 #19
+2026/04/26-11:34:06.544 1ea8 Delete type=2 #21
+2026/04/26-11:34:06.545 1ea8 Delete type=0 #23
+2026/04/26-11:34:06.545 1ea8 Delete type=2 #24
+2026/04/26-11:34:06.558 1ea8 Delete type=0 #26
+2026/04/26-11:34:06.575 1ea8 Delete type=2 #27
+2026/04/26-11:34:06.591 1ea8 Delete type=0 #29
+2026/04/26-11:34:06.592 1ea8 Delete type=2 #30
+2026/04/26-11:34:06.592 1ea8 Delete type=0 #32
+2026/04/26-11:34:06.592 1ea8 Delete type=0 #36
+2026/04/26-11:34:06.609 1ea8 Delete type=0 #39
+2026/04/26-11:35:49.979 1294 Level-0 table #46: started
+2026/04/26-11:35:49.984 1294 Level-0 table #46: 682292 bytes OK
+2026/04/26-11:35:49.986 1294 Delete type=0 #42
+2026/04/26-11:35:49.986 1294 Compacting 4@0 + 1@1 files
+2026/04/26-11:35:49.993 1294 Generated table #47@0: 4 keys, 682199 bytes
+2026/04/26-11:35:49.993 1294 Compacted 4@0 + 1@1 files => 682199 bytes
+2026/04/26-11:35:49.995 1294 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/04/26-11:35:49.996 1294 Delete type=2 #34
+2026/04/26-11:35:49.996 1294 Delete type=2 #37
+2026/04/26-11:35:49.996 1294 Delete type=2 #40
+2026/04/26-11:35:49.996 1294 Delete type=2 #43
+2026/04/26-11:35:49.996 1294 Delete type=2 #46
