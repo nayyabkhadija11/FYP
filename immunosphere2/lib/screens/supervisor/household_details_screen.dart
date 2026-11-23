@@ -1,129 +1,3 @@
-/*import 'package:flutter/material.dart';
-import 'vaccinator_details_screen.dart';
-
-class HouseholdDetailsScreen extends StatelessWidget {
-  const HouseholdDetailsScreen({super.key});
-
-  static const Color primaryGreen = Color(0xFF006837);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        title: const Text("Household Details", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        backgroundColor: primaryGreen,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Household Information", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(height: 8),
-            _infoCard(),
-
-            const SizedBox(height: 16),
-            const Text("Children Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(height: 8),
-            _childrenCard(),
-
-            const SizedBox(height: 16),
-            const Text("Visit History", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(height: 8),
-            _historyCard(),
-
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: const Icon(Icons.phone, color: Colors.white),
-              label: const Text("Contact Vaccinator", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const VaccinatorDetailsScreen()),
-                );
-              },
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _infoCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-      child: Column(
-        children: const [
-          _RowItem("Household ID", "HH-00015"),
-          _RowItem("Address", "Mohallah A, Jand"),
-          _RowItem("Assigned Vaccinator", "Fatima Noor (VAC002)"),
-          _RowItem("Status", "Pending", isStatus: true),
-          _RowItem("Last Visit", "11 Aug 2026, 10:30 AM"),
-        ],
-      ),
-    );
-  }
-
-  Widget _childrenCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-      child: Column(
-        children: const [
-          _RowItem("Ali Ahmad (3 Y)", "1/2 Completed"),
-          Divider(),
-          _RowItem("Fatima Ali (1 Y)", "0/2 Pending"),
-        ],
-      ),
-    );
-  }
-
-  Widget _historyCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-      child: Column(
-        children: const [
-          _RowItem("11 Aug 2026, 10:30 AM", "Pending"),
-          Divider(),
-          _RowItem("08 Aug 2026, 09:15 AM", "Completed"),
-        ],
-      ),
-    );
-  }
-}
-
-class _RowItem extends StatelessWidget {
-  final String label;
-  final String val;
-  final bool isStatus;
-  const _RowItem(this.label, this.val, {this.isStatus = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          Text(val, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isStatus ? Colors.orange : Colors.black)),
-        ],
-      ),
-    );
-  }
-}  */
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -174,7 +48,7 @@ class _HouseholdDetailsScreenState extends State<HouseholdDetailsScreen> {
 
           if (docs.isEmpty) {
             return const Center(
-              child: Text('Is household ke liye koi record nahi mila.', style: TextStyle(color: Colors.grey)),
+              child: Text('No records found for this household.', style: TextStyle(color: Colors.grey)),
             );
           }
 
@@ -255,7 +129,7 @@ class _HouseholdDetailsScreenState extends State<HouseholdDetailsScreen> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-        child: const Text('Abhi tak koi visit record nahi hui.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        child: const Text('No visits have been recorded yet..', style: TextStyle(fontSize: 11, color: Colors.grey)),
       );
     }
 

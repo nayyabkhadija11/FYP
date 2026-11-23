@@ -433,7 +433,7 @@ class _AssignVaccinatorsScreenState extends State<AssignVaccinatorsScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Vaccinators load nahi ho sakay: $e';
+        _error = 'Failed to load vaccinators. $e';
         _isLoading = false;
       });
     }
@@ -442,7 +442,7 @@ class _AssignVaccinatorsScreenState extends State<AssignVaccinatorsScreen> {
   void _onContinuePressed() {
     if (_selectedVaccinatorIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kam se kam ek vaccinator select karein')),
+        const SnackBar(content: Text('Please select at least one vaccinator.')),
       );
       return;
     }
@@ -572,7 +572,7 @@ class _AssignVaccinatorsScreenState extends State<AssignVaccinatorsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '$totalChildren bachay $selectedCount vaccinators mein divide hongay (~$perVaccinator har ek ko)',
+                '$totalChildren Children $selectedCount will be distributed (~$perVaccinator among the vaccinators.)',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: primaryGreen),
               ),
             ),
@@ -584,8 +584,8 @@ class _AssignVaccinatorsScreenState extends State<AssignVaccinatorsScreen> {
               child: Center(
                 child: Text(
                   (_supervisorHealthCenter != null && _supervisorHealthCenter!.isNotEmpty)
-                      ? 'Aapke health center ("$_supervisorHealthCenter") se link koi vaccinator nahi mila.'
-                      : 'Koi vaccinators nahi milay.',
+                      ? 'Your Health Center ("$_supervisorHealthCenter") se link koi vaccinator nahi mila.'
+                      : 'No vaccinators found.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.grey),
                 ),

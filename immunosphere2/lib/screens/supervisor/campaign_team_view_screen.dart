@@ -76,7 +76,7 @@ class _CampaignTeamViewScreenState extends State<CampaignTeamViewScreen> {
 
   Widget _buildByVaccinatorTab() {
     if (_groupedChildren.isEmpty) {
-      return const Center(child: Text('Koi vaccinator assign nahi hua.', style: TextStyle(color: Colors.grey)));
+      return const Center(child: Text('No vaccinator has been assigned.', style: TextStyle(color: Colors.grey)));
     }
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -114,7 +114,7 @@ class _CampaignTeamViewScreenState extends State<CampaignTeamViewScreen> {
     });
 
     if (byHouse.isEmpty) {
-      return const Center(child: Text('Koi household data nahi mila.', style: TextStyle(color: Colors.grey)));
+      return const Center(child: Text('No household data found.', style: TextStyle(color: Colors.grey)));
     }
 
     return ListView(

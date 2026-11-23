@@ -307,7 +307,7 @@ class _ChildQRCodeScreenState extends State<ChildQRCodeScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('QR save karne ke liye gallery permission chahiye.'),
+              content: Text('Gallery permission is required to save the QR code.'),
             ),
           );
         }
@@ -337,7 +337,7 @@ class _ChildQRCodeScreenState extends State<ChildQRCodeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('QR Code gallery mein save ho gaya.'),
+            content: Text('QR Code has been saved to the gallery.'),
             backgroundColor: primaryGreen,
             duration: Duration(seconds: 2),
           ),
@@ -346,7 +346,7 @@ class _ChildQRCodeScreenState extends State<ChildQRCodeScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save nahi ho saka: $e')),
+          SnackBar(content: Text('Failed to save the QR Code to the gallery.: $e')),
         );
       }
     } finally {
@@ -431,7 +431,6 @@ class _ChildQRCodeScreenState extends State<ChildQRCodeScreen> {
                           ),
                           child: Column(
                             children: [
-                              // DYNAMIC REAL QR CODE DISPLAY
                               Container(
                                 width: 200,
                                 height: 200,

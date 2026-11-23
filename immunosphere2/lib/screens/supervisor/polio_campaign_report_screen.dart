@@ -648,7 +648,7 @@ class _PolioCampaignReportScreenState
           if (teamPerformance.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Text('Koi vaccinator assign nahi hua.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text('No vaccinator has been assigned.', style: TextStyle(color: Colors.grey, fontSize: 12)),
             )
           else
             SingleChildScrollView(

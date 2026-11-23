@@ -103,7 +103,7 @@ class _VaccinatorRoutineReportScreenState extends State<VaccinatorRoutineReportS
     }
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw 'Login nahi mila';
+      if (user == null) throw 'No login found.';
       final db = FirebaseFirestore.instance;
 
       final childF = db.collection('children').where('registeredBy', isEqualTo: user.uid).get();
@@ -197,7 +197,7 @@ class _VaccinatorRoutineReportScreenState extends State<VaccinatorRoutineReportS
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Report load nahi ho saki: $e';
+        _error = 'Failed to load report: $e';
         _loading = false;
       });
     }

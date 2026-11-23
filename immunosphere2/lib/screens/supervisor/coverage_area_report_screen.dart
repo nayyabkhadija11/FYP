@@ -504,7 +504,7 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
                   return Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(color: const Color(0xFFF7FAF8), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-                    child: const Center(child: Text('Koi campaign nahi mili.', style: TextStyle(color: Colors.grey))),
+                    child: const Center(child: Text('No campaigns found.', style: TextStyle(color: Colors.grey))),
                   );
                 }
 
@@ -529,7 +529,7 @@ class _CoverageAreaReportScreenState extends State<CoverageAreaReportScreen> {
                   return Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(color: const Color(0xFFF7FAF8), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-                    child: const Center(child: Text('Is period ke liye koi data nahi mila.', style: TextStyle(color: Colors.grey))),
+                    child: const Center(child: Text('No data found for this period.', style: TextStyle(color: Colors.grey))),
                   );
                 }
 
